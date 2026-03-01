@@ -7,8 +7,10 @@ import android.app.PendingIntent
 import android.app.Service
 import android.content.Context
 import android.content.Intent
+import android.content.pm.ServiceInfo
 import android.media.MediaPlayer
 import android.media.RingtoneManager
+import android.os.Build
 import android.os.IBinder
 import androidx.core.app.NotificationCompat
 
@@ -44,7 +46,11 @@ class AlarmService : Service() {
             .setAutoCancel(false)
             .build()
 
-        startForeground(1, notification)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            startForeground(1, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK)
+        } else {
+            startForeground(1, notification)
+        }
 
         playAlarmSound()
 
