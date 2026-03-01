@@ -9,14 +9,12 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.BoxScope
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
@@ -174,7 +172,7 @@ fun AlarmScreen(scheduler: AlarmScheduler, dataStore: AlarmDataStore) {
             val timePickerState = rememberTimePickerState(
                 initialHour = LocalTime.now().hour,
                 initialMinute = LocalTime.now().minute,
-                is24Hour = false // Classic Pixel style is often 12h with AM/PM
+                is24Hour = false
             )
             Dialog(onDismissRequest = { showTimePicker = false }) {
                 Card(
@@ -198,10 +196,10 @@ fun AlarmScreen(scheduler: AlarmScheduler, dataStore: AlarmDataStore) {
                             modifier = Modifier.fillMaxWidth().padding(top = 20.dp),
                             horizontalArrangement = Arrangement.End
                         ) {
-                            TextButton(onClick = { showTimePicker = false }) {
+                            androidx.compose.material3.TextButton(onClick = { showTimePicker = false }) {
                                 Text("Cancel")
                             }
-                            TextButton(onClick = {
+                            androidx.compose.material3.TextButton(onClick = {
                                 scope.launch {
                                     val newAlarm = AlarmItem(
                                         id = (alarms.maxOfOrNull { it.id } ?: 0) + 1,
@@ -229,14 +227,14 @@ fun AlarmCard(
     onToggle: (Boolean) -> Unit,
     onDelete: () -> Unit
 ) {
-    val formatter = DateTimeFormatter.ofPattern("h:mm a") // 12h format for classic feel
+    val formatter = DateTimeFormatter.ofPattern("h:mm a")
     
     Card(
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(
             containerColor = if (alarm.isEnabled) MaterialTheme.colorScheme.surfaceContainer else Color(0xFFF0F0F0)
         ),
-        shape = MaterialTheme.shapes.extraLarge // More expressive rounded corners
+        shape = MaterialTheme.shapes.extraLarge
     ) {
         Row(
             modifier = Modifier
@@ -272,22 +270,4 @@ fun AlarmCard(
             }
         }
     }
-}
-
-@Composable
-fun TextButton(onClick: () -> Unit, content: @Composable RowScope.() -> Unit) {
-    androidx.compose.material3.TextButton(onClick = onClick, content = content)
-}
-
-@Composable
-fun Box(
-    modifier: Modifier = Modifier,
-    contentAlignment: Alignment = Alignment.TopStart,
-    content: @Composable BoxScope.() -> Unit
-) {
-    androidx.compose.foundation.layout.Box(
-        modifier = modifier,
-        contentAlignment = contentAlignment,
-        content = content
-    )
 }
