@@ -9,8 +9,10 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -273,13 +275,19 @@ fun AlarmCard(
 }
 
 @Composable
-fun TextButton(onClick: () -> Unit, content: @Composable () -> Unit) {
+fun TextButton(onClick: () -> Unit, content: @Composable RowScope.() -> Unit) {
     androidx.compose.material3.TextButton(onClick = onClick, content = content)
 }
 
 @Composable
-fun Box(modifier: Modifier = Modifier, contentAlignment: Alignment = Alignment.TopStart, content: @Composable () -> Unit) {
-    androidx.compose.foundation.layout.Box(modifier = modifier, contentAlignment = contentAlignment) {
-        content()
-    }
+fun Box(
+    modifier: Modifier = Modifier,
+    contentAlignment: Alignment = Alignment.TopStart,
+    content: @Composable BoxScope.() -> Unit
+) {
+    androidx.compose.foundation.layout.Box(
+        modifier = modifier,
+        contentAlignment = contentAlignment,
+        content = content
+    )
 }

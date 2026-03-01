@@ -107,7 +107,9 @@ fun RingingScreen(onDismiss: () -> Unit, onSnooze: () -> Unit) {
                 colors = ButtonDefaults.outlinedButtonColors(
                     contentColor = MaterialTheme.colorScheme.onPrimary
                 ),
-                border = ButtonDefaults.outlinedButtonBorder.copy(brush = androidx.compose.ui.graphics.SolidColor(MaterialTheme.colorScheme.onPrimary))
+                border = ButtonDefaults.outlinedButtonBorder(enabled = true).copy(
+                    brush = androidx.compose.ui.graphics.SolidColor(MaterialTheme.colorScheme.onPrimary)
+                )
             ) {
                 Text("Snooze", fontSize = 18.sp)
             }
