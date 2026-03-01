@@ -1,5 +1,7 @@
 package com.example.alarmclock
 
+import android.app.KeyguardManager
+import android.content.Context
 import android.content.Intent
 import android.os.Build
 import android.os.Bundle
@@ -38,20 +40,23 @@ import java.time.format.DateTimeFormatter
 class AlarmActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        enableEdgeToEdge()
         
-        // Show over lock screen
+        // Wake up the screen and show over the lock screen
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O_MR1) {
             setShowWhenLocked(true)
             setTurnScreenOn(true)
+            val keyguardManager = getSystemService(Context.KEYGUARD_SERVICE) as KeyguardManager
+            keyguardManager.requestDismissKeyguard(this, null)
         } else {
             @Suppress("DEPRECATION")
             window.addFlags(
-                WindowManager.LayoutParams.FLAG_SHOW_WHEN_LOCKED or
-                        WindowManager.LayoutParams.FLAG_TURN_SCREEN_ON or
-                        WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON
+                WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON or
+                        WindowManager.LayoutParams.FLAG_SHOW_WHEN_LOCKED or
+                        WindowManager.LayoutParams.FLAG_TURN_SCREEN_ON
             )
         }
+        
+        enableEdgeToEdge()
 
         setContent {
             AlarmClockTheme {
@@ -61,7 +66,6 @@ class AlarmActivity : ComponentActivity() {
                         finish()
                     },
                     onSnooze = {
-                        // For simplicity, just stop for now or reschedule for 5 mins later
                         stopService(Intent(this, AlarmService::class.java))
                         finish()
                     }
@@ -78,7 +82,7 @@ fun RingingScreen(onDismiss: () -> Unit, onSnooze: () -> Unit) {
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(MaterialTheme.colorScheme.primary) // Expressive: Full screen color
+            .background(MaterialTheme.colorScheme.primary)
             .padding(32.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center
