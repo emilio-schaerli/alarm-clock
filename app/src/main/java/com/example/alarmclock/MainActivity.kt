@@ -3,6 +3,7 @@ package com.example.alarmclock
 import android.Manifest
 import android.os.Build
 import android.os.Bundle
+import android.view.HapticFeedbackConstants
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
@@ -48,6 +49,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -174,6 +176,15 @@ fun AlarmScreen(scheduler: AlarmScheduler, dataStore: AlarmDataStore) {
                 initialMinute = LocalTime.now().minute,
                 is24Hour = false
             )
+            val view = LocalView.current
+
+            // Trigger stronger haptic feedback when hour or minute changes
+            LaunchedEffect(timePickerState.hour, timePickerState.minute) {
+                // Using CLOCK_TICK for that precise Pixel feel, but also VIRTUAL_KEY for strength
+                view.performHapticFeedback(HapticFeedbackConstants.CLOCK_TICK)
+                view.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
+            }
+
             Dialog(onDismissRequest = { showTimePicker = false }) {
                 Card(
                     colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),

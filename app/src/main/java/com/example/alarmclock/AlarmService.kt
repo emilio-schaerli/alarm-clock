@@ -12,11 +12,45 @@ import android.media.RingtoneManager
 import android.os.Build
 import android.os.IBinder
 import androidx.core.app.NotificationCompat
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.launch
 
 class AlarmService : Service() {
     private var mediaPlayer: MediaPlayer? = null
+    private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    private lateinit var dataStore: AlarmDataStore
+
+    companion object {
+        const val ACTION_DISMISS = "com.example.alarmclock.DISMISS"
+        const val ACTION_SNOOZE = "com.example.alarmclock.SNOOZE"
+        const val EXTRA_ALARM_ID = "ALARM_ID"
+    }
+
+    override fun onCreate() {
+        super.onCreate()
+        dataStore = AlarmDataStore(this)
+    }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        val alarmId = intent?.getIntExtra(EXTRA_ALARM_ID, -1) ?: -1
+
+        when (intent?.action) {
+            ACTION_DISMISS -> {
+                if (alarmId != -1) {
+                    dismissAlarm(alarmId)
+                }
+                stopSelf()
+                return START_NOT_STICKY
+            }
+            ACTION_SNOOZE -> {
+                stopSelf()
+                return START_NOT_STICKY
+            }
+        }
+
         val channelId = "ALARM_CHANNEL"
         val channelName = "Alarm Notifications"
         val notificationManager = getSystemService(NOTIFICATION_SERVICE) as NotificationManager
@@ -30,21 +64,42 @@ class AlarmService : Service() {
 
         val fullScreenIntent = Intent(this, AlarmActivity::class.java).apply {
             this.flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+            putExtra(EXTRA_ALARM_ID, alarmId)
         }
         val fullScreenPendingIntent = PendingIntent.getActivity(
             this, 0, fullScreenIntent, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+
+        // Dismiss action
+        val dismissIntent = Intent(this, AlarmService::class.java).apply {
+            action = ACTION_DISMISS
+            putExtra(EXTRA_ALARM_ID, alarmId)
+        }
+        val dismissPendingIntent = PendingIntent.getService(
+            this, 1, dismissIntent, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+
+        // Snooze action
+        val snoozeIntent = Intent(this, AlarmService::class.java).apply {
+            action = ACTION_SNOOZE
+            putExtra(EXTRA_ALARM_ID, alarmId)
+        }
+        val snoozePendingIntent = PendingIntent.getService(
+            this, 2, snoozeIntent, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
 
         val notification = NotificationCompat.Builder(this, channelId)
             .setContentTitle("Alarm")
             .setContentText("Your alarm is ringing!")
             .setSmallIcon(android.R.drawable.ic_lock_idle_alarm)
-            .setPriority(NotificationCompat.PRIORITY_HIGH)
+            .setPriority(NotificationCompat.PRIORITY_MAX)
             .setCategory(NotificationCompat.CATEGORY_ALARM)
             .setFullScreenIntent(fullScreenPendingIntent, true)
             .setOngoing(true)
             .setAutoCancel(false)
             .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
+            .addAction(android.R.drawable.ic_menu_close_clear_cancel, "Snooze", snoozePendingIntent)
+            .addAction(android.R.drawable.checkbox_on_background, "Dismiss", dismissPendingIntent)
             .build()
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
@@ -56,6 +111,16 @@ class AlarmService : Service() {
         playAlarmSound()
 
         return START_NOT_STICKY
+    }
+
+    private fun dismissAlarm(alarmId: Int) {
+        serviceScope.launch {
+            val currentAlarms = dataStore.alarmsFlow.first()
+            val updatedAlarms = currentAlarms.map {
+                if (it.id == alarmId) it.copy(isEnabled = false) else it
+            }
+            dataStore.saveAlarms(updatedAlarms)
+        }
     }
 
     private fun playAlarmSound() {

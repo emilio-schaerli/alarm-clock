@@ -44,11 +44,13 @@ class AndroidAlarmScheduler(
             alarmTime
         }
 
-        alarmManager.setExactAndAllowWhileIdle(
-            AlarmManager.RTC_WAKEUP,
+        // Use setAlarmClock for maximum priority and to be recognized as a "core" alarm app by Android
+        val info = AlarmManager.AlarmClockInfo(
             finalAlarmTime.toInstant().toEpochMilli(),
             pendingIntent
         )
+
+        alarmManager.setAlarmClock(info, pendingIntent)
     }
 
     override fun cancel(item: AlarmItem) {

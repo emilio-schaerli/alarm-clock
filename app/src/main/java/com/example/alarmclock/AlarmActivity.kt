@@ -58,15 +58,25 @@ class AlarmActivity : ComponentActivity() {
         
         enableEdgeToEdge()
 
+        val alarmId = intent.getIntExtra(AlarmService.EXTRA_ALARM_ID, -1)
+
         setContent {
             AlarmClockTheme {
                 RingingScreen(
                     onDismiss = {
-                        stopService(Intent(this, AlarmService::class.java))
+                        val dismissIntent = Intent(this, AlarmService::class.java).apply {
+                            action = AlarmService.ACTION_DISMISS
+                            putExtra(AlarmService.EXTRA_ALARM_ID, alarmId)
+                        }
+                        startService(dismissIntent)
                         finish()
                     },
                     onSnooze = {
-                        stopService(Intent(this, AlarmService::class.java))
+                        val snoozeIntent = Intent(this, AlarmService::class.java).apply {
+                            action = AlarmService.ACTION_SNOOZE
+                            putExtra(AlarmService.EXTRA_ALARM_ID, alarmId)
+                        }
+                        startService(snoozeIntent)
                         finish()
                     }
                 )
