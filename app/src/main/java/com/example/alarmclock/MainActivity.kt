@@ -23,6 +23,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -94,6 +95,7 @@ fun AlarmScreen(scheduler: AlarmScheduler, dataStore: AlarmDataStore) {
     val alarms by dataStore.alarmsFlow.collectAsState(initial = emptyList())
     val scope = rememberCoroutineScope()
     var showTimePicker by remember { mutableStateOf(false) }
+    var editingAlarm by remember { mutableStateOf<AlarmItem?>(null) }
 
     Scaffold(
         topBar = {
@@ -113,7 +115,10 @@ fun AlarmScreen(scheduler: AlarmScheduler, dataStore: AlarmDataStore) {
         },
         floatingActionButton = {
             FloatingActionButton(
-                onClick = { showTimePicker = true },
+                onClick = { 
+                    editingAlarm = null
+                    showTimePicker = true 
+                },
                 containerColor = MaterialTheme.colorScheme.primary,
                 contentColor = MaterialTheme.colorScheme.onPrimary,
                 shape = MaterialTheme.shapes.extraLarge
@@ -163,6 +168,10 @@ fun AlarmScreen(scheduler: AlarmScheduler, dataStore: AlarmDataStore) {
                                     dataStore.saveAlarms(updatedAlarms)
                                     scheduler.cancel(alarm)
                                 }
+                            },
+                            onEdit = {
+                                editingAlarm = alarm
+                                showTimePicker = true
                             }
                         )
                     }
@@ -171,16 +180,15 @@ fun AlarmScreen(scheduler: AlarmScheduler, dataStore: AlarmDataStore) {
         }
 
         if (showTimePicker) {
+            val initialTime = editingAlarm?.time ?: LocalTime.now()
             val timePickerState = rememberTimePickerState(
-                initialHour = LocalTime.now().hour,
-                initialMinute = LocalTime.now().minute,
+                initialHour = initialTime.hour,
+                initialMinute = initialTime.minute,
                 is24Hour = false
             )
             val view = LocalView.current
 
-            // Trigger stronger haptic feedback when hour or minute changes
             LaunchedEffect(timePickerState.hour, timePickerState.minute) {
-                // Using CLOCK_TICK for that precise Pixel feel, but also VIRTUAL_KEY for strength
                 view.performHapticFeedback(HapticFeedbackConstants.CLOCK_TICK)
                 view.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
             }
@@ -196,7 +204,7 @@ fun AlarmScreen(scheduler: AlarmScheduler, dataStore: AlarmDataStore) {
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
                         Text(
-                            "Set alarm time",
+                            if (editingAlarm == null) "Set alarm time" else "Edit alarm time",
                             style = MaterialTheme.typography.labelLarge,
                             modifier = Modifier.align(Alignment.Start).padding(bottom = 20.dp)
                         )
@@ -212,13 +220,26 @@ fun AlarmScreen(scheduler: AlarmScheduler, dataStore: AlarmDataStore) {
                             }
                             androidx.compose.material3.TextButton(onClick = {
                                 scope.launch {
-                                    val newAlarm = AlarmItem(
-                                        id = (alarms.maxOfOrNull { it.id } ?: 0) + 1,
-                                        time = LocalTime.of(timePickerState.hour, timePickerState.minute)
-                                    )
-                                    val updatedAlarms = alarms + newAlarm
-                                    dataStore.saveAlarms(updatedAlarms)
-                                    scheduler.schedule(newAlarm)
+                                    if (editingAlarm == null) {
+                                        val newAlarm = AlarmItem(
+                                            id = (alarms.maxOfOrNull { it.id } ?: 0) + 1,
+                                            time = LocalTime.of(timePickerState.hour, timePickerState.minute)
+                                        )
+                                        val updatedAlarms = alarms + newAlarm
+                                        dataStore.saveAlarms(updatedAlarms)
+                                        scheduler.schedule(newAlarm)
+                                    } else {
+                                        val updatedAlarm = editingAlarm!!.copy(
+                                            time = LocalTime.of(timePickerState.hour, timePickerState.minute),
+                                            isEnabled = true // Re-enable if edited
+                                        )
+                                        val updatedAlarms = alarms.map {
+                                            if (it.id == updatedAlarm.id) updatedAlarm else it
+                                        }
+                                        dataStore.saveAlarms(updatedAlarms)
+                                        scheduler.cancel(editingAlarm!!)
+                                        scheduler.schedule(updatedAlarm)
+                                    }
                                 }
                                 showTimePicker = false
                             }) {
@@ -236,7 +257,8 @@ fun AlarmScreen(scheduler: AlarmScheduler, dataStore: AlarmDataStore) {
 fun AlarmCard(
     alarm: AlarmItem,
     onToggle: (Boolean) -> Unit,
-    onDelete: () -> Unit
+    onDelete: () -> Unit,
+    onEdit: () -> Unit
 ) {
     val formatter = DateTimeFormatter.ofPattern("h:mm a")
     
@@ -264,6 +286,9 @@ fun AlarmCard(
             }
             
             Row(verticalAlignment = Alignment.CenterVertically) {
+                IconButton(onClick = onEdit) {
+                    Icon(Icons.Default.Edit, contentDescription = "Edit", tint = Color.Gray)
+                }
                 IconButton(onClick = onDelete) {
                     Icon(Icons.Default.Delete, contentDescription = "Delete", tint = Color.Gray)
                 }
