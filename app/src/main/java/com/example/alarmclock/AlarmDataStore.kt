@@ -11,6 +11,7 @@ import kotlinx.coroutines.flow.map
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
+import java.time.LocalDate
 import java.time.LocalTime
 
 private val Context.dataStore: DataStore<Preferences> by preferencesDataStore(name = "alarms")
@@ -20,7 +21,10 @@ data class AlarmData(
     val id: Int,
     val hour: Int,
     val minute: Int,
-    val isEnabled: Boolean
+    val isEnabled: Boolean,
+    val daysOfWeek: Set<Int> = emptySet(),
+    val startDate: String? = null,
+    val endDate: String? = null
 )
 
 class AlarmDataStore(private val context: Context) {
@@ -29,13 +33,34 @@ class AlarmDataStore(private val context: Context) {
     val alarmsFlow: Flow<List<AlarmItem>> = context.dataStore.data
         .map { preferences ->
             val alarmsJson = preferences[alarmsKey] ?: "[]"
-            Json.decodeFromString<List<AlarmData>>(alarmsJson).map {
-                AlarmItem(it.id, LocalTime.of(it.hour, it.minute), it.isEnabled)
+            try {
+                Json.decodeFromString<List<AlarmData>>(alarmsJson).map {
+                    AlarmItem(
+                        it.id,
+                        LocalTime.of(it.hour, it.minute),
+                        it.isEnabled,
+                        it.daysOfWeek,
+                        it.startDate?.let { date -> LocalDate.parse(date) },
+                        it.endDate?.let { date -> LocalDate.parse(date) }
+                    )
+                }
+            } catch (e: Exception) {
+                emptyList()
             }
         }
 
     suspend fun saveAlarms(alarms: List<AlarmItem>) {
-        val alarmsData = alarms.map { AlarmData(it.id, it.time.hour, it.time.minute, it.isEnabled) }
+        val alarmsData = alarms.map { 
+            AlarmData(
+                it.id, 
+                it.time.hour, 
+                it.time.minute, 
+                it.isEnabled, 
+                it.daysOfWeek,
+                it.startDate?.toString(),
+                it.endDate?.toString()
+            ) 
+        }
         context.dataStore.edit { preferences ->
             preferences[alarmsKey] = Json.encodeToString(alarmsData)
         }

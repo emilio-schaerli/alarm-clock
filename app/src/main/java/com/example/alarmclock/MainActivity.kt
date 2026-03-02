@@ -9,35 +9,48 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.CalendarToday
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.DatePicker
+import androidx.compose.material3.DatePickerDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FloatingActionButton
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TimePicker
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.material3.rememberTimePickerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -57,7 +70,10 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import com.example.alarmclock.ui.theme.AlarmClockTheme
 import kotlinx.coroutines.launch
+import java.time.Instant
+import java.time.LocalDate
 import java.time.LocalTime
+import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 
 class MainActivity : ComponentActivity() {
@@ -89,7 +105,7 @@ class MainActivity : ComponentActivity() {
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 fun AlarmScreen(scheduler: AlarmScheduler, dataStore: AlarmDataStore) {
     val alarms by dataStore.alarmsFlow.collectAsState(initial = emptyList())
@@ -186,6 +202,14 @@ fun AlarmScreen(scheduler: AlarmScheduler, dataStore: AlarmDataStore) {
                 initialMinute = initialTime.minute,
                 is24Hour = false
             )
+            
+            var selectedDays by remember { mutableStateOf(editingAlarm?.daysOfWeek ?: emptySet()) }
+            var startDate by remember { mutableStateOf(editingAlarm?.startDate) }
+            var endDate by remember { mutableStateOf(editingAlarm?.endDate) }
+            
+            var showStartDatePicker by remember { mutableStateOf(false) }
+            var showEndDatePicker by remember { mutableStateOf(false) }
+
             val view = LocalView.current
 
             LaunchedEffect(timePickerState.hour, timePickerState.minute) {
@@ -208,9 +232,61 @@ fun AlarmScreen(scheduler: AlarmScheduler, dataStore: AlarmDataStore) {
                             style = MaterialTheme.typography.labelLarge,
                             modifier = Modifier.align(Alignment.Start).padding(bottom = 20.dp)
                         )
-                        TimePicker(
-                            state = timePickerState
-                        )
+                        TimePicker(state = timePickerState)
+                        
+                        Spacer(modifier = Modifier.height(16.dp))
+                        HorizontalDivider()
+                        Spacer(modifier = Modifier.height(16.dp))
+
+                        // Days of week selector
+                        Text("Repeat", style = MaterialTheme.typography.labelMedium, modifier = Modifier.align(Alignment.Start))
+                        Row(
+                            modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            val days = listOf("M", "T", "W", "T", "F", "S", "S")
+                            days.forEachIndexed { index, day ->
+                                val dayNum = index + 1
+                                val isSelected = selectedDays.contains(dayNum)
+                                Surface(
+                                    modifier = Modifier
+                                        .size(36.dp)
+                                        .clickable {
+                                            selectedDays = if (isSelected) selectedDays - dayNum else selectedDays + dayNum
+                                        },
+                                    shape = CircleShape,
+                                    color = if (isSelected) MaterialTheme.colorScheme.primary else Color.Transparent,
+                                    border = if (!isSelected) androidx.compose.foundation.BorderStroke(1.dp, Color.LightGray) else null
+                                ) {
+                                    Box(contentAlignment = Alignment.Center) {
+                                        Text(
+                                            day,
+                                            color = if (isSelected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface,
+                                            style = MaterialTheme.typography.bodySmall
+                                        )
+                                    }
+                                }
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(8.dp))
+
+                        // Date range selector
+                        Row(modifier = Modifier.fillMaxWidth()) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text("Start Date", style = MaterialTheme.typography.labelSmall)
+                                TextButton(onClick = { showStartDatePicker = true }) {
+                                    Text(startDate?.toString() ?: "Not set")
+                                }
+                            }
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text("End Date", style = MaterialTheme.typography.labelSmall)
+                                TextButton(onClick = { showEndDatePicker = true }) {
+                                    Text(endDate?.toString() ?: "Not set")
+                                }
+                            }
+                        }
+
                         Row(
                             modifier = Modifier.fillMaxWidth().padding(top = 20.dp),
                             horizontalArrangement = Arrangement.End
@@ -220,18 +296,25 @@ fun AlarmScreen(scheduler: AlarmScheduler, dataStore: AlarmDataStore) {
                             }
                             androidx.compose.material3.TextButton(onClick = {
                                 scope.launch {
+                                    val newTime = LocalTime.of(timePickerState.hour, timePickerState.minute)
                                     if (editingAlarm == null) {
                                         val newAlarm = AlarmItem(
                                             id = (alarms.maxOfOrNull { it.id } ?: 0) + 1,
-                                            time = LocalTime.of(timePickerState.hour, timePickerState.minute)
+                                            time = newTime,
+                                            daysOfWeek = selectedDays,
+                                            startDate = startDate,
+                                            endDate = endDate
                                         )
                                         val updatedAlarms = alarms + newAlarm
                                         dataStore.saveAlarms(updatedAlarms)
                                         scheduler.schedule(newAlarm)
                                     } else {
                                         val updatedAlarm = editingAlarm!!.copy(
-                                            time = LocalTime.of(timePickerState.hour, timePickerState.minute),
-                                            isEnabled = true // Re-enable if edited
+                                            time = newTime,
+                                            isEnabled = true,
+                                            daysOfWeek = selectedDays,
+                                            startDate = startDate,
+                                            endDate = endDate
                                         )
                                         val updatedAlarms = alarms.map {
                                             if (it.id == updatedAlarm.id) updatedAlarm else it
@@ -247,6 +330,56 @@ fun AlarmScreen(scheduler: AlarmScheduler, dataStore: AlarmDataStore) {
                             }
                         }
                     }
+                }
+            }
+
+            if (showStartDatePicker) {
+                val datePickerState = rememberDatePickerState(
+                    initialSelectedDateMillis = startDate?.atStartOfDay(ZoneId.systemDefault())?.toInstant()?.toEpochMilli()
+                )
+                DatePickerDialog(
+                    onDismissRequest = { showStartDatePicker = false },
+                    confirmButton = {
+                        TextButton(onClick = {
+                            startDate = datePickerState.selectedDateMillis?.let {
+                                Instant.ofEpochMilli(it).atZone(ZoneId.systemDefault()).toLocalDate()
+                            }
+                            showStartDatePicker = false
+                        }) { Text("OK") }
+                    },
+                    dismissButton = {
+                        TextButton(onClick = { 
+                            startDate = null
+                            showStartDatePicker = false 
+                        }) { Text("Clear") }
+                    }
+                ) {
+                    DatePicker(state = datePickerState)
+                }
+            }
+
+            if (showEndDatePicker) {
+                val datePickerState = rememberDatePickerState(
+                    initialSelectedDateMillis = endDate?.atStartOfDay(ZoneId.systemDefault())?.toInstant()?.toEpochMilli()
+                )
+                DatePickerDialog(
+                    onDismissRequest = { showEndDatePicker = false },
+                    confirmButton = {
+                        TextButton(onClick = {
+                            endDate = datePickerState.selectedDateMillis?.let {
+                                Instant.ofEpochMilli(it).atZone(ZoneId.systemDefault()).toLocalDate()
+                            }
+                            showEndDatePicker = false
+                        }) { Text("OK") }
+                    },
+                    dismissButton = {
+                        TextButton(onClick = { 
+                            endDate = null
+                            showEndDatePicker = false 
+                        }) { Text("Clear") }
+                    }
+                ) {
+                    DatePicker(state = datePickerState)
                 }
             }
         }
@@ -269,40 +402,72 @@ fun AlarmCard(
         ),
         shape = MaterialTheme.shapes.extraLarge
     ) {
-        Row(
-            modifier = Modifier
-                .padding(24.dp)
-                .fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceBetween
-        ) {
-            Column {
-                Text(
-                    text = alarm.time.format(formatter),
-                    style = MaterialTheme.typography.displayMedium,
-                    color = if (alarm.isEnabled) MaterialTheme.colorScheme.onSurface else Color.Gray,
-                    fontWeight = FontWeight.SemiBold
-                )
+        Column(modifier = Modifier.padding(24.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Column {
+                    Text(
+                        text = alarm.time.format(formatter),
+                        style = MaterialTheme.typography.displayMedium,
+                        color = if (alarm.isEnabled) MaterialTheme.colorScheme.onSurface else Color.Gray,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                }
+                
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    IconButton(onClick = onEdit) {
+                        Icon(Icons.Default.Edit, contentDescription = "Edit", tint = Color.Gray)
+                    }
+                    IconButton(onClick = onDelete) {
+                        Icon(Icons.Default.Delete, contentDescription = "Delete", tint = Color.Gray)
+                    }
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Switch(
+                        checked = alarm.isEnabled,
+                        onCheckedChange = onToggle,
+                        colors = SwitchDefaults.colors(
+                            checkedThumbColor = MaterialTheme.colorScheme.primary,
+                            checkedTrackColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.3f),
+                            uncheckedThumbColor = Color.White,
+                            uncheckedTrackColor = Color.LightGray
+                        )
+                    )
+                }
             }
             
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                IconButton(onClick = onEdit) {
-                    Icon(Icons.Default.Edit, contentDescription = "Edit", tint = Color.Gray)
+            if (alarm.daysOfWeek.isNotEmpty() || alarm.startDate != null || alarm.endDate != null) {
+                Spacer(modifier = Modifier.height(8.dp))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    if (alarm.daysOfWeek.isNotEmpty()) {
+                        val dayNames = listOf("Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun")
+                        Text(
+                            text = if (alarm.daysOfWeek.size == 7) "Every day" 
+                                   else alarm.daysOfWeek.sorted().joinToString(", ") { dayNames[it - 1] },
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                    }
+                    if (alarm.startDate != null || alarm.endDate != null) {
+                        if (alarm.daysOfWeek.isNotEmpty()) {
+                            Text(" | ", style = MaterialTheme.typography.bodySmall, color = Color.Gray)
+                        }
+                        Icon(
+                            Icons.Default.CalendarToday, 
+                            contentDescription = null, 
+                            modifier = Modifier.size(12.dp),
+                            tint = Color.Gray
+                        )
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text(
+                            text = "${alarm.startDate ?: "..." } to ${alarm.endDate ?: "..."}",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = Color.Gray
+                        )
+                    }
                 }
-                IconButton(onClick = onDelete) {
-                    Icon(Icons.Default.Delete, contentDescription = "Delete", tint = Color.Gray)
-                }
-                Spacer(modifier = Modifier.width(8.dp))
-                Switch(
-                    checked = alarm.isEnabled,
-                    onCheckedChange = onToggle,
-                    colors = SwitchDefaults.colors(
-                        checkedThumbColor = MaterialTheme.colorScheme.primary,
-                        checkedTrackColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.3f),
-                        uncheckedThumbColor = Color.White,
-                        uncheckedTrackColor = Color.LightGray
-                    )
-                )
             }
         }
     }
