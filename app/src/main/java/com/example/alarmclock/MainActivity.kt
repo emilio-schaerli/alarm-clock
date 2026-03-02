@@ -14,7 +14,6 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
-import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -33,7 +32,7 @@ import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.DatePicker
+import androidx.compose.material3.DateRangePicker
 import androidx.compose.material3.DatePickerDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FloatingActionButton
@@ -50,7 +49,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.TimePicker
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
-import androidx.compose.material3.rememberDatePickerState
+import androidx.compose.material3.rememberDateRangePickerState
 import androidx.compose.material3.rememberTimePickerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -207,14 +206,20 @@ fun AlarmScreen(scheduler: AlarmScheduler, dataStore: AlarmDataStore) {
             var startDate by remember { mutableStateOf(editingAlarm?.startDate) }
             var endDate by remember { mutableStateOf(editingAlarm?.endDate) }
             
-            var showStartDatePicker by remember { mutableStateOf(false) }
-            var showEndDatePicker by remember { mutableStateOf(false) }
+            var showDateRangePicker by remember { mutableStateOf(false) }
 
             val view = LocalView.current
 
             LaunchedEffect(timePickerState.hour, timePickerState.minute) {
                 view.performHapticFeedback(HapticFeedbackConstants.CLOCK_TICK)
                 view.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
+            }
+
+            // Automatically select all days if a date range is set but no days are selected
+            LaunchedEffect(startDate, endDate) {
+                if ((startDate != null || endDate != null) && selectedDays.isEmpty()) {
+                    selectedDays = (1..7).toSet()
+                }
             }
 
             Dialog(onDismissRequest = { showTimePicker = false }) {
@@ -272,18 +277,20 @@ fun AlarmScreen(scheduler: AlarmScheduler, dataStore: AlarmDataStore) {
                         Spacer(modifier = Modifier.height(8.dp))
 
                         // Date range selector
-                        Row(modifier = Modifier.fillMaxWidth()) {
-                            Column(modifier = Modifier.weight(1f)) {
-                                Text("Start Date", style = MaterialTheme.typography.labelSmall)
-                                TextButton(onClick = { showStartDatePicker = true }) {
-                                    Text(startDate?.toString() ?: "Not set")
+                        Column(modifier = Modifier.fillMaxWidth()) {
+                            Text("Date Range", style = MaterialTheme.typography.labelSmall)
+                            TextButton(
+                                onClick = { showDateRangePicker = true },
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                val dateText = if (startDate != null && endDate != null) {
+                                    "$startDate to $endDate"
+                                } else if (startDate != null) {
+                                    "From $startDate"
+                                } else {
+                                    "Not set"
                                 }
-                            }
-                            Column(modifier = Modifier.weight(1f)) {
-                                Text("End Date", style = MaterialTheme.typography.labelSmall)
-                                TextButton(onClick = { showEndDatePicker = true }) {
-                                    Text(endDate?.toString() ?: "Not set")
-                                }
+                                Text(dateText)
                             }
                         }
 
@@ -297,6 +304,7 @@ fun AlarmScreen(scheduler: AlarmScheduler, dataStore: AlarmDataStore) {
                             androidx.compose.material3.TextButton(onClick = {
                                 scope.launch {
                                     val newTime = LocalTime.of(timePickerState.hour, timePickerState.minute)
+                                    
                                     if (editingAlarm == null) {
                                         val newAlarm = AlarmItem(
                                             id = (alarms.maxOfOrNull { it.id } ?: 0) + 1,
@@ -333,53 +341,36 @@ fun AlarmScreen(scheduler: AlarmScheduler, dataStore: AlarmDataStore) {
                 }
             }
 
-            if (showStartDatePicker) {
-                val datePickerState = rememberDatePickerState(
-                    initialSelectedDateMillis = startDate?.atStartOfDay(ZoneId.systemDefault())?.toInstant()?.toEpochMilli()
+            if (showDateRangePicker) {
+                val dateRangePickerState = rememberDateRangePickerState(
+                    initialSelectedStartDateMillis = startDate?.atStartOfDay(ZoneId.systemDefault())?.toInstant()?.toEpochMilli(),
+                    initialSelectedEndDateMillis = endDate?.atStartOfDay(ZoneId.systemDefault())?.toInstant()?.toEpochMilli()
                 )
                 DatePickerDialog(
-                    onDismissRequest = { showStartDatePicker = false },
+                    onDismissRequest = { showDateRangePicker = false },
                     confirmButton = {
                         TextButton(onClick = {
-                            startDate = datePickerState.selectedDateMillis?.let {
+                            startDate = dateRangePickerState.selectedStartDateMillis?.let {
                                 Instant.ofEpochMilli(it).atZone(ZoneId.systemDefault()).toLocalDate()
                             }
-                            showStartDatePicker = false
+                            endDate = dateRangePickerState.selectedEndDateMillis?.let {
+                                Instant.ofEpochMilli(it).atZone(ZoneId.systemDefault()).toLocalDate()
+                            }
+                            showDateRangePicker = false
                         }) { Text("OK") }
                     },
                     dismissButton = {
                         TextButton(onClick = { 
                             startDate = null
-                            showStartDatePicker = false 
-                        }) { Text("Clear") }
-                    }
-                ) {
-                    DatePicker(state = datePickerState)
-                }
-            }
-
-            if (showEndDatePicker) {
-                val datePickerState = rememberDatePickerState(
-                    initialSelectedDateMillis = endDate?.atStartOfDay(ZoneId.systemDefault())?.toInstant()?.toEpochMilli()
-                )
-                DatePickerDialog(
-                    onDismissRequest = { showEndDatePicker = false },
-                    confirmButton = {
-                        TextButton(onClick = {
-                            endDate = datePickerState.selectedDateMillis?.let {
-                                Instant.ofEpochMilli(it).atZone(ZoneId.systemDefault()).toLocalDate()
-                            }
-                            showEndDatePicker = false
-                        }) { Text("OK") }
-                    },
-                    dismissButton = {
-                        TextButton(onClick = { 
                             endDate = null
-                            showEndDatePicker = false 
+                            showDateRangePicker = false 
                         }) { Text("Clear") }
                     }
                 ) {
-                    DatePicker(state = datePickerState)
+                    DateRangePicker(
+                        state = dateRangePickerState,
+                        modifier = Modifier.height(400.dp)
+                    )
                 }
             }
         }
@@ -462,7 +453,13 @@ fun AlarmCard(
                         )
                         Spacer(modifier = Modifier.width(4.dp))
                         Text(
-                            text = "${alarm.startDate ?: "..." } to ${alarm.endDate ?: "..."}",
+                            text = if (alarm.startDate != null && alarm.endDate != null) {
+                                "${alarm.startDate} to ${alarm.endDate}"
+                            } else if (alarm.startDate != null) {
+                                "From ${alarm.startDate}"
+                            } else {
+                                "Until ${alarm.endDate}"
+                            },
                             style = MaterialTheme.typography.bodySmall,
                             color = Color.Gray
                         )
