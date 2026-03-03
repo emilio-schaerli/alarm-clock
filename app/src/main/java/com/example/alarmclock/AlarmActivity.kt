@@ -1,8 +1,10 @@
 package com.example.alarmclock
 
 import android.app.KeyguardManager
+import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
+import android.content.IntentFilter
 import android.os.Build
 import android.os.Bundle
 import android.view.WindowManager
@@ -38,6 +40,14 @@ import java.time.LocalTime
 import java.time.format.DateTimeFormatter
 
 class AlarmActivity : ComponentActivity() {
+    private val finishReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context?, intent: Intent?) {
+            if (intent?.action == AlarmService.ACTION_ALARM_DONE) {
+                finish()
+            }
+        }
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         
@@ -57,6 +67,15 @@ class AlarmActivity : ComponentActivity() {
         }
         
         enableEdgeToEdge()
+
+        // Register receiver to finish activity if alarm is dismissed/snoozed from notification
+        val filter = IntentFilter(AlarmService.ACTION_ALARM_DONE)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            registerReceiver(finishReceiver, filter, RECEIVER_NOT_EXPORTED)
+        } else {
+            @Suppress("UnspecifiedRegisterReceiverFlag")
+            registerReceiver(finishReceiver, filter)
+        }
 
         val alarmId = intent.getIntExtra(AlarmService.EXTRA_ALARM_ID, -1)
 
@@ -81,6 +100,15 @@ class AlarmActivity : ComponentActivity() {
                     }
                 )
             }
+        }
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        try {
+            unregisterReceiver(finishReceiver)
+        } catch (e: Exception) {
+            // Receiver might not be registered
         }
     }
 }

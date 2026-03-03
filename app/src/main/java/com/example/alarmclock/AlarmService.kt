@@ -15,13 +15,15 @@ import androidx.core.app.NotificationCompat
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.time.LocalDateTime
 
 class AlarmService : Service() {
     private var mediaPlayer: MediaPlayer? = null
-    private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
     private lateinit var dataStore: AlarmDataStore
     private lateinit var scheduler: AlarmScheduler
 
@@ -43,19 +45,28 @@ class AlarmService : Service() {
 
         when (intent?.action) {
             ACTION_DISMISS -> {
-                if (alarmId != -1) {
-                    dismissAlarm(alarmId)
+                serviceScope.launch {
+                    if (alarmId != -1) {
+                        dismissAlarm(alarmId)
+                    }
+                    finishAlarm()
                 }
-                finishAlarm()
                 return START_NOT_STICKY
             }
             ACTION_SNOOZE -> {
-                if (alarmId != -1) {
-                    snoozeAlarm(alarmId)
+                serviceScope.launch {
+                    if (alarmId != -1) {
+                        snoozeAlarm(alarmId)
+                    }
+                    finishAlarm()
                 }
-                finishAlarm()
                 return START_NOT_STICKY
             }
+        }
+
+        // When the alarm fires, we should clear the snoozeUntil field because the snooze is now triggering.
+        if (alarmId != -1) {
+            clearSnooze(alarmId)
         }
 
         val channelId = "ALARM_CHANNEL"
@@ -129,22 +140,29 @@ class AlarmService : Service() {
         stopSelf()
     }
 
-    private fun dismissAlarm(alarmId: Int) {
-        serviceScope.launch {
+    private suspend fun dismissAlarm(alarmId: Int) {
+        withContext(Dispatchers.IO) {
             val currentAlarms = dataStore.alarmsFlow.first()
-            val updatedAlarms = currentAlarms.map {
-                if (it.id == alarmId) it.copy(isEnabled = false, snoozeUntil = null) else it
+            val alarmToDismiss = currentAlarms.find { it.id == alarmId }
+            if (alarmToDismiss != null) {
+                // Keep enabled if it has repeating days or a future end date
+                val isRepeating = alarmToDismiss.daysOfWeek.isNotEmpty() || (alarmToDismiss.endDate != null)
+                val updatedAlarm = alarmToDismiss.copy(isEnabled = isRepeating, snoozeUntil = null)
+                
+                val updatedAlarms = currentAlarms.map {
+                    if (it.id == alarmId) updatedAlarm else it
+                }
+                dataStore.saveAlarms(updatedAlarms)
+                
+                if (isRepeating) {
+                    scheduler.schedule(updatedAlarm)
+                }
             }
-            dataStore.saveAlarms(updatedAlarms)
-            // If it's a repeating alarm, we might want to schedule the next one, 
-            // but the current logic for `isEnabled = false` means we stop it.
-            // If the user wants it to repeat tomorrow, they'd keep it enabled.
-            // For now, following the user's previous request to toggle it off.
         }
     }
 
-    private fun snoozeAlarm(alarmId: Int) {
-        serviceScope.launch {
+    private suspend fun snoozeAlarm(alarmId: Int) {
+        withContext(Dispatchers.IO) {
             val currentAlarms = dataStore.alarmsFlow.first()
             val alarmToSnooze = currentAlarms.find { it.id == alarmId }
             if (alarmToSnooze != null) {
@@ -156,6 +174,16 @@ class AlarmService : Service() {
                 dataStore.saveAlarms(updatedAlarms)
                 scheduler.schedule(updatedAlarm)
             }
+        }
+    }
+
+    private fun clearSnooze(alarmId: Int) {
+        serviceScope.launch(Dispatchers.IO) {
+            val currentAlarms = dataStore.alarmsFlow.first()
+            val updatedAlarms = currentAlarms.map {
+                if (it.id == alarmId) it.copy(snoozeUntil = null) else it
+            }
+            dataStore.saveAlarms(updatedAlarms)
         }
     }
 
@@ -184,6 +212,7 @@ class AlarmService : Service() {
         mediaPlayer?.stop()
         mediaPlayer?.release()
         mediaPlayer = null
+        serviceScope.cancel()
     }
 
     override fun onBind(intent: Intent?): IBinder? = null

@@ -258,9 +258,9 @@ fun AlarmScreen(scheduler: AlarmScheduler, dataStore: AlarmDataStore) {
                             )
                         )
                         
-                        Spacer(modifier = Modifier.height(16.dp))
+                        Spacer(modifier = Modifier.height(24.dp))
                         HorizontalDivider()
-                        Spacer(modifier = Modifier.height(16.dp))
+                        Spacer(modifier = Modifier.height(24.dp))
 
                         // Days of week selector
                         Text("Repeat", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, modifier = Modifier.align(Alignment.Start))
@@ -298,7 +298,12 @@ fun AlarmScreen(scheduler: AlarmScheduler, dataStore: AlarmDataStore) {
 
                         // Date range selector
                         Column(modifier = Modifier.fillMaxWidth()) {
-                            Text("Date Range", style = MaterialTheme.typography.titleSmall, color = Color.Gray)
+                            Text(
+                                "Date Range", 
+                                style = MaterialTheme.typography.titleMedium, 
+                                fontWeight = FontWeight.Bold, 
+                                modifier = Modifier.align(Alignment.Start)
+                            )
                             TextButton(
                                 onClick = { showDateRangePicker = true },
                                 modifier = Modifier.fillMaxWidth()
@@ -310,7 +315,11 @@ fun AlarmScreen(scheduler: AlarmScheduler, dataStore: AlarmDataStore) {
                                 } else {
                                     "Not set"
                                 }
-                                Text(dateText, style = MaterialTheme.typography.bodyLarge.copy(fontSize = 18.sp))
+                                Text(
+                                    dateText, 
+                                    style = MaterialTheme.typography.bodyLarge.copy(fontSize = 18.sp, fontWeight = FontWeight.ExtraBold),
+                                    color = MaterialTheme.colorScheme.primary
+                                )
                             }
                         }
 
