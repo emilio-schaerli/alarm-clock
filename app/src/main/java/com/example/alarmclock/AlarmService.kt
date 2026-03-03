@@ -17,21 +17,25 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import java.time.LocalDateTime
 
 class AlarmService : Service() {
     private var mediaPlayer: MediaPlayer? = null
     private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private lateinit var dataStore: AlarmDataStore
+    private lateinit var scheduler: AlarmScheduler
 
     companion object {
         const val ACTION_DISMISS = "com.example.alarmclock.DISMISS"
         const val ACTION_SNOOZE = "com.example.alarmclock.SNOOZE"
+        const val ACTION_ALARM_DONE = "com.example.alarmclock.ALARM_DONE"
         const val EXTRA_ALARM_ID = "ALARM_ID"
     }
 
     override fun onCreate() {
         super.onCreate()
         dataStore = AlarmDataStore(this)
+        scheduler = AndroidAlarmScheduler(this)
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -42,11 +46,14 @@ class AlarmService : Service() {
                 if (alarmId != -1) {
                     dismissAlarm(alarmId)
                 }
-                stopSelf()
+                finishAlarm()
                 return START_NOT_STICKY
             }
             ACTION_SNOOZE -> {
-                stopSelf()
+                if (alarmId != -1) {
+                    snoozeAlarm(alarmId)
+                }
+                finishAlarm()
                 return START_NOT_STICKY
             }
         }
@@ -59,6 +66,8 @@ class AlarmService : Service() {
             setSound(null, null)
             enableVibration(true)
             lockscreenVisibility = NotificationCompat.VISIBILITY_PUBLIC
+            lightColor = 0xFFFBC02D.toInt()
+            enableLights(true)
         }
         notificationManager.createNotificationChannel(channel)
 
@@ -100,6 +109,8 @@ class AlarmService : Service() {
             .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
             .addAction(android.R.drawable.ic_menu_close_clear_cancel, "Snooze", snoozePendingIntent)
             .addAction(android.R.drawable.checkbox_on_background, "Dismiss", dismissPendingIntent)
+            .setColor(0xFFFBC02D.toInt())
+            .setColorized(true)
             .build()
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
@@ -113,13 +124,38 @@ class AlarmService : Service() {
         return START_NOT_STICKY
     }
 
+    private fun finishAlarm() {
+        sendBroadcast(Intent(ACTION_ALARM_DONE))
+        stopSelf()
+    }
+
     private fun dismissAlarm(alarmId: Int) {
         serviceScope.launch {
             val currentAlarms = dataStore.alarmsFlow.first()
             val updatedAlarms = currentAlarms.map {
-                if (it.id == alarmId) it.copy(isEnabled = false) else it
+                if (it.id == alarmId) it.copy(isEnabled = false, snoozeUntil = null) else it
             }
             dataStore.saveAlarms(updatedAlarms)
+            // If it's a repeating alarm, we might want to schedule the next one, 
+            // but the current logic for `isEnabled = false` means we stop it.
+            // If the user wants it to repeat tomorrow, they'd keep it enabled.
+            // For now, following the user's previous request to toggle it off.
+        }
+    }
+
+    private fun snoozeAlarm(alarmId: Int) {
+        serviceScope.launch {
+            val currentAlarms = dataStore.alarmsFlow.first()
+            val alarmToSnooze = currentAlarms.find { it.id == alarmId }
+            if (alarmToSnooze != null) {
+                val snoozeTime = LocalDateTime.now().plusMinutes(10)
+                val updatedAlarm = alarmToSnooze.copy(snoozeUntil = snoozeTime)
+                val updatedAlarms = currentAlarms.map {
+                    if (it.id == alarmId) updatedAlarm else it
+                }
+                dataStore.saveAlarms(updatedAlarms)
+                scheduler.schedule(updatedAlarm)
+            }
         }
     }
 

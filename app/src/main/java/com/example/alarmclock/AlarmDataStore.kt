@@ -12,6 +12,7 @@ import kotlinx.serialization.Serializable
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import java.time.LocalDate
+import java.time.LocalDateTime
 import java.time.LocalTime
 
 private val Context.dataStore: DataStore<Preferences> by preferencesDataStore(name = "alarms")
@@ -24,7 +25,8 @@ data class AlarmData(
     val isEnabled: Boolean,
     val daysOfWeek: Set<Int> = emptySet(),
     val startDate: String? = null,
-    val endDate: String? = null
+    val endDate: String? = null,
+    val snoozeUntil: String? = null
 )
 
 class AlarmDataStore(private val context: Context) {
@@ -41,7 +43,8 @@ class AlarmDataStore(private val context: Context) {
                         it.isEnabled,
                         it.daysOfWeek,
                         it.startDate?.let { date -> LocalDate.parse(date) },
-                        it.endDate?.let { date -> LocalDate.parse(date) }
+                        it.endDate?.let { date -> LocalDate.parse(date) },
+                        it.snoozeUntil?.let { dateTime -> LocalDateTime.parse(dateTime) }
                     )
                 }
             } catch (e: Exception) {
@@ -58,7 +61,8 @@ class AlarmDataStore(private val context: Context) {
                 it.isEnabled, 
                 it.daysOfWeek,
                 it.startDate?.toString(),
-                it.endDate?.toString()
+                it.endDate?.toString(),
+                it.snoozeUntil?.toString()
             ) 
         }
         context.dataStore.edit { preferences ->

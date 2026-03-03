@@ -30,6 +30,7 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.CalendarToday
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Snooze
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.DateRangePicker
@@ -47,6 +48,7 @@ import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TimePicker
+import androidx.compose.material3.TimePickerDefaults
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.rememberDateRangePickerState
@@ -118,7 +120,7 @@ fun AlarmScreen(scheduler: AlarmScheduler, dataStore: AlarmDataStore) {
                 title = { 
                     Text(
                         "Alarms", 
-                        style = MaterialTheme.typography.displayMedium.copy(fontSize = 32.sp),
+                        style = MaterialTheme.typography.displayMedium.copy(fontSize = 36.sp),
                         fontWeight = FontWeight.Bold
                     ) 
                 },
@@ -138,7 +140,7 @@ fun AlarmScreen(scheduler: AlarmScheduler, dataStore: AlarmDataStore) {
                 contentColor = MaterialTheme.colorScheme.onPrimary,
                 shape = MaterialTheme.shapes.extraLarge
             ) {
-                Icon(Icons.Default.Add, contentDescription = "Add Alarm")
+                Icon(Icons.Default.Add, contentDescription = "Add Alarm", modifier = Modifier.size(32.dp))
             }
         },
         containerColor = MaterialTheme.colorScheme.background
@@ -153,7 +155,7 @@ fun AlarmScreen(scheduler: AlarmScheduler, dataStore: AlarmDataStore) {
                 Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                     Text(
                         "No alarms set", 
-                        style = MaterialTheme.typography.bodyLarge, 
+                        style = MaterialTheme.typography.headlineSmall, 
                         color = Color.Gray
                     )
                 }
@@ -168,7 +170,7 @@ fun AlarmScreen(scheduler: AlarmScheduler, dataStore: AlarmDataStore) {
                             onToggle = { isEnabled ->
                                 scope.launch {
                                     val updatedAlarms = alarms.map {
-                                        if (it.id == alarm.id) it.copy(isEnabled = isEnabled) else it
+                                        if (it.id == alarm.id) it.copy(isEnabled = isEnabled, snoozeUntil = null) else it
                                     }
                                     dataStore.saveAlarms(updatedAlarms)
                                     val updated = updatedAlarms.find { it.id == alarm.id }
@@ -234,19 +236,36 @@ fun AlarmScreen(scheduler: AlarmScheduler, dataStore: AlarmDataStore) {
                     ) {
                         Text(
                             if (editingAlarm == null) "Set alarm time" else "Edit alarm time",
-                            style = MaterialTheme.typography.labelLarge,
+                            style = MaterialTheme.typography.headlineSmall,
+                            fontWeight = FontWeight.Bold,
                             modifier = Modifier.align(Alignment.Start).padding(bottom = 20.dp)
                         )
-                        TimePicker(state = timePickerState)
+                        TimePicker(
+                            state = timePickerState,
+                            colors = TimePickerDefaults.colors(
+                                clockDialSelectedContentColor = MaterialTheme.colorScheme.onPrimary,
+                                clockDialUnselectedContentColor = MaterialTheme.colorScheme.onSurface,
+                                selectorColor = MaterialTheme.colorScheme.primary,
+                                containerColor = MaterialTheme.colorScheme.surface,
+                                periodSelectorSelectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
+                                periodSelectorUnselectedContainerColor = Color.Transparent,
+                                periodSelectorSelectedContentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                                periodSelectorUnselectedContentColor = MaterialTheme.colorScheme.onSurface,
+                                timeSelectorSelectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
+                                timeSelectorUnselectedContainerColor = Color.Transparent,
+                                timeSelectorSelectedContentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                                timeSelectorUnselectedContentColor = MaterialTheme.colorScheme.onSurface
+                            )
+                        )
                         
                         Spacer(modifier = Modifier.height(16.dp))
                         HorizontalDivider()
                         Spacer(modifier = Modifier.height(16.dp))
 
                         // Days of week selector
-                        Text("Repeat", style = MaterialTheme.typography.labelMedium, modifier = Modifier.align(Alignment.Start))
+                        Text("Repeat", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, modifier = Modifier.align(Alignment.Start))
                         Row(
-                            modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
+                            modifier = Modifier.fillMaxWidth().padding(vertical = 12.dp),
                             horizontalArrangement = Arrangement.SpaceBetween
                         ) {
                             val days = listOf("M", "T", "W", "T", "F", "S", "S")
@@ -255,7 +274,7 @@ fun AlarmScreen(scheduler: AlarmScheduler, dataStore: AlarmDataStore) {
                                 val isSelected = selectedDays.contains(dayNum)
                                 Surface(
                                     modifier = Modifier
-                                        .size(36.dp)
+                                        .size(40.dp)
                                         .clickable {
                                             selectedDays = if (isSelected) selectedDays - dayNum else selectedDays + dayNum
                                         },
@@ -267,18 +286,19 @@ fun AlarmScreen(scheduler: AlarmScheduler, dataStore: AlarmDataStore) {
                                         Text(
                                             day,
                                             color = if (isSelected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface,
-                                            style = MaterialTheme.typography.bodySmall
+                                            style = MaterialTheme.typography.bodyLarge,
+                                            fontWeight = FontWeight.Medium
                                         )
                                     }
                                 }
                             }
                         }
 
-                        Spacer(modifier = Modifier.height(8.dp))
+                        Spacer(modifier = Modifier.height(16.dp))
 
                         // Date range selector
                         Column(modifier = Modifier.fillMaxWidth()) {
-                            Text("Date Range", style = MaterialTheme.typography.labelSmall)
+                            Text("Date Range", style = MaterialTheme.typography.titleSmall, color = Color.Gray)
                             TextButton(
                                 onClick = { showDateRangePicker = true },
                                 modifier = Modifier.fillMaxWidth()
@@ -290,16 +310,16 @@ fun AlarmScreen(scheduler: AlarmScheduler, dataStore: AlarmDataStore) {
                                 } else {
                                     "Not set"
                                 }
-                                Text(dateText)
+                                Text(dateText, style = MaterialTheme.typography.bodyLarge.copy(fontSize = 18.sp))
                             }
                         }
 
                         Row(
-                            modifier = Modifier.fillMaxWidth().padding(top = 20.dp),
+                            modifier = Modifier.fillMaxWidth().padding(top = 24.dp),
                             horizontalArrangement = Arrangement.End
                         ) {
                             androidx.compose.material3.TextButton(onClick = { showTimePicker = false }) {
-                                Text("Cancel")
+                                Text("Cancel", style = MaterialTheme.typography.labelLarge.copy(fontSize = 16.sp))
                             }
                             androidx.compose.material3.TextButton(onClick = {
                                 scope.launch {
@@ -322,7 +342,8 @@ fun AlarmScreen(scheduler: AlarmScheduler, dataStore: AlarmDataStore) {
                                             isEnabled = true,
                                             daysOfWeek = selectedDays,
                                             startDate = startDate,
-                                            endDate = endDate
+                                            endDate = endDate,
+                                            snoozeUntil = null // Reset snooze on edit
                                         )
                                         val updatedAlarms = alarms.map {
                                             if (it.id == updatedAlarm.id) updatedAlarm else it
@@ -334,7 +355,7 @@ fun AlarmScreen(scheduler: AlarmScheduler, dataStore: AlarmDataStore) {
                                 }
                                 showTimePicker = false
                             }) {
-                                Text("OK")
+                                Text("OK", style = MaterialTheme.typography.labelLarge.copy(fontSize = 16.sp, fontWeight = FontWeight.Bold))
                             }
                         }
                     }
@@ -357,14 +378,14 @@ fun AlarmScreen(scheduler: AlarmScheduler, dataStore: AlarmDataStore) {
                                 Instant.ofEpochMilli(it).atZone(ZoneId.systemDefault()).toLocalDate()
                             }
                             showDateRangePicker = false
-                        }) { Text("OK") }
+                        }) { Text("OK", style = MaterialTheme.typography.labelLarge) }
                     },
                     dismissButton = {
                         TextButton(onClick = { 
                             startDate = null
                             endDate = null
                             showDateRangePicker = false 
-                        }) { Text("Clear") }
+                        }) { Text("Clear", style = MaterialTheme.typography.labelLarge) }
                     }
                 ) {
                     DateRangePicker(
@@ -402,7 +423,7 @@ fun AlarmCard(
                 Column {
                     Text(
                         text = alarm.time.format(formatter),
-                        style = MaterialTheme.typography.displayMedium,
+                        style = MaterialTheme.typography.displayMedium.copy(fontSize = 48.sp),
                         color = if (alarm.isEnabled) MaterialTheme.colorScheme.onSurface else Color.Gray,
                         fontWeight = FontWeight.SemiBold
                     )
@@ -410,10 +431,10 @@ fun AlarmCard(
                 
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     IconButton(onClick = onEdit) {
-                        Icon(Icons.Default.Edit, contentDescription = "Edit", tint = Color.Gray)
+                        Icon(Icons.Default.Edit, contentDescription = "Edit", tint = Color.Gray, modifier = Modifier.size(28.dp))
                     }
                     IconButton(onClick = onDelete) {
-                        Icon(Icons.Default.Delete, contentDescription = "Delete", tint = Color.Gray)
+                        Icon(Icons.Default.Delete, contentDescription = "Delete", tint = Color.Gray, modifier = Modifier.size(28.dp))
                     }
                     Spacer(modifier = Modifier.width(8.dp))
                     Switch(
@@ -429,29 +450,49 @@ fun AlarmCard(
                 }
             }
             
-            if (alarm.daysOfWeek.isNotEmpty() || alarm.startDate != null || alarm.endDate != null) {
+            if (alarm.snoozeUntil != null && alarm.isEnabled) {
                 Spacer(modifier = Modifier.height(8.dp))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        Icons.Default.Snooze, 
+                        contentDescription = null, 
+                        modifier = Modifier.size(16.dp),
+                        tint = MaterialTheme.colorScheme.primary
+                    )
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text(
+                        text = "Snoozed until ${alarm.snoozeUntil.format(DateTimeFormatter.ofPattern("h:mm a"))}",
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = MaterialTheme.colorScheme.primary,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+            }
+
+            if (alarm.daysOfWeek.isNotEmpty() || alarm.startDate != null || alarm.endDate != null) {
+                Spacer(modifier = Modifier.height(12.dp))
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     if (alarm.daysOfWeek.isNotEmpty()) {
                         val dayNames = listOf("Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun")
                         Text(
                             text = if (alarm.daysOfWeek.size == 7) "Every day" 
                                    else alarm.daysOfWeek.sorted().joinToString(", ") { dayNames[it - 1] },
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.primary
+                            style = MaterialTheme.typography.bodyLarge,
+                            color = MaterialTheme.colorScheme.primary,
+                            fontWeight = FontWeight.Medium
                         )
                     }
                     if (alarm.startDate != null || alarm.endDate != null) {
                         if (alarm.daysOfWeek.isNotEmpty()) {
-                            Text(" | ", style = MaterialTheme.typography.bodySmall, color = Color.Gray)
+                            Text(" | ", style = MaterialTheme.typography.bodyLarge, color = Color.Gray)
                         }
                         Icon(
                             Icons.Default.CalendarToday, 
                             contentDescription = null, 
-                            modifier = Modifier.size(12.dp),
+                            modifier = Modifier.size(16.dp),
                             tint = Color.Gray
                         )
-                        Spacer(modifier = Modifier.width(4.dp))
+                        Spacer(modifier = Modifier.width(6.dp))
                         Text(
                             text = if (alarm.startDate != null && alarm.endDate != null) {
                                 "${alarm.startDate} to ${alarm.endDate}"
@@ -460,7 +501,7 @@ fun AlarmCard(
                             } else {
                                 "Until ${alarm.endDate}"
                             },
-                            style = MaterialTheme.typography.bodySmall,
+                            style = MaterialTheme.typography.bodyLarge,
                             color = Color.Gray
                         )
                     }

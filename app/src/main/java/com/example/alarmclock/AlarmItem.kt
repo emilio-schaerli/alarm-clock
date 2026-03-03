@@ -2,6 +2,7 @@ package com.example.alarmclock
 
 import java.time.LocalDate
 import java.time.LocalTime
+import java.time.LocalDateTime
 
 data class AlarmItem(
     val id: Int,
@@ -9,5 +10,6 @@ data class AlarmItem(
     val isEnabled: Boolean = true,
     val daysOfWeek: Set<Int> = emptySet(), // 1 = Monday, ..., 7 = Sunday
     val startDate: LocalDate? = null,
-    val endDate: LocalDate? = null
+    val endDate: LocalDate? = null,
+    val snoozeUntil: LocalDateTime? = null
 )
