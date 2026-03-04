@@ -26,7 +26,8 @@ data class AlarmData(
     val daysOfWeek: Set<Int> = emptySet(),
     val startDate: String? = null,
     val endDate: String? = null,
-    val snoozeUntil: String? = null
+    val snoozeUntil: String? = null,
+    val label: String? = null
 )
 
 class AlarmDataStore(private val context: Context) {
@@ -44,7 +45,8 @@ class AlarmDataStore(private val context: Context) {
                         it.daysOfWeek,
                         it.startDate?.let { date -> LocalDate.parse(date) },
                         it.endDate?.let { date -> LocalDate.parse(date) },
-                        it.snoozeUntil?.let { dateTime -> LocalDateTime.parse(dateTime) }
+                        it.snoozeUntil?.let { dateTime -> LocalDateTime.parse(dateTime) },
+                        it.label
                     )
                 }
             } catch (e: Exception) {
@@ -62,7 +64,8 @@ class AlarmDataStore(private val context: Context) {
                 it.daysOfWeek,
                 it.startDate?.toString(),
                 it.endDate?.toString(),
-                it.snoozeUntil?.toString()
+                it.snoozeUntil?.toString(),
+                it.label
             ) 
         }
         context.dataStore.edit { preferences ->

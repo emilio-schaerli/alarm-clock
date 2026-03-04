@@ -24,8 +24,11 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.Label
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.CalendarToday
 import androidx.compose.material.icons.filled.Delete
@@ -41,6 +44,8 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
@@ -207,6 +212,7 @@ fun AlarmScreen(scheduler: AlarmScheduler, dataStore: AlarmDataStore) {
             var selectedDays by remember { mutableStateOf(editingAlarm?.daysOfWeek ?: emptySet()) }
             var startDate by remember { mutableStateOf(editingAlarm?.startDate) }
             var endDate by remember { mutableStateOf(editingAlarm?.endDate) }
+            var label by remember { mutableStateOf(editingAlarm?.label ?: "") }
             
             var showDateRangePicker by remember { mutableStateOf(false) }
 
@@ -231,7 +237,7 @@ fun AlarmScreen(scheduler: AlarmScheduler, dataStore: AlarmDataStore) {
                     elevation = CardDefaults.cardElevation(defaultElevation = 6.dp)
                 ) {
                     Column(
-                        modifier = Modifier.padding(24.dp),
+                        modifier = Modifier.padding(24.dp).verticalScroll(rememberScrollState()),
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
                         Text(
@@ -260,6 +266,23 @@ fun AlarmScreen(scheduler: AlarmScheduler, dataStore: AlarmDataStore) {
                         
                         Spacer(modifier = Modifier.height(24.dp))
                         HorizontalDivider()
+                        Spacer(modifier = Modifier.height(24.dp))
+
+                        // Label input
+                        OutlinedTextField(
+                            value = label,
+                            onValueChange = { label = it },
+                            label = { Text("Label (e.g. Basketball Practice)") },
+                            modifier = Modifier.fillMaxWidth(),
+                            singleLine = true,
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedBorderColor = MaterialTheme.colorScheme.primary,
+                                focusedLabelColor = MaterialTheme.colorScheme.primary,
+                                cursorColor = MaterialTheme.colorScheme.primary
+                            ),
+                            leadingIcon = { Icon(Icons.AutoMirrored.Filled.Label, contentDescription = null, tint = MaterialTheme.colorScheme.primary) }
+                        )
+
                         Spacer(modifier = Modifier.height(24.dp))
 
                         // Days of week selector
@@ -340,7 +363,8 @@ fun AlarmScreen(scheduler: AlarmScheduler, dataStore: AlarmDataStore) {
                                             time = newTime,
                                             daysOfWeek = selectedDays,
                                             startDate = startDate,
-                                            endDate = endDate
+                                            endDate = endDate,
+                                            label = label.ifBlank { null }
                                         )
                                         val updatedAlarms = alarms + newAlarm
                                         dataStore.saveAlarms(updatedAlarms)
@@ -352,7 +376,8 @@ fun AlarmScreen(scheduler: AlarmScheduler, dataStore: AlarmDataStore) {
                                             daysOfWeek = selectedDays,
                                             startDate = startDate,
                                             endDate = endDate,
-                                            snoozeUntil = null // Reset snooze on edit
+                                            snoozeUntil = null, // Reset snooze on edit
+                                            label = label.ifBlank { null }
                                         )
                                         val updatedAlarms = alarms.map {
                                             if (it.id == updatedAlarm.id) updatedAlarm else it
@@ -424,6 +449,16 @@ fun AlarmCard(
         shape = MaterialTheme.shapes.extraLarge
     ) {
         Column(modifier = Modifier.padding(24.dp)) {
+            if (!alarm.label.isNullOrBlank()) {
+                Text(
+                    text = alarm.label,
+                    style = MaterialTheme.typography.titleLarge,
+                    color = MaterialTheme.colorScheme.primary,
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier.padding(bottom = 8.dp)
+                )
+            }
+
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically,

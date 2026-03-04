@@ -11,5 +11,6 @@ data class AlarmItem(
     val daysOfWeek: Set<Int> = emptySet(), // 1 = Monday, ..., 7 = Sunday
     val startDate: LocalDate? = null,
     val endDate: LocalDate? = null,
-    val snoozeUntil: LocalDateTime? = null
+    val snoozeUntil: LocalDateTime? = null,
+    val label: String? = null
 )

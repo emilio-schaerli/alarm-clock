@@ -32,6 +32,7 @@ class AlarmService : Service() {
         const val ACTION_SNOOZE = "com.example.alarmclock.SNOOZE"
         const val ACTION_ALARM_DONE = "com.example.alarmclock.ALARM_DONE"
         const val EXTRA_ALARM_ID = "ALARM_ID"
+        const val EXTRA_ALARM_LABEL = "ALARM_LABEL"
     }
 
     override fun onCreate() {
@@ -69,6 +70,20 @@ class AlarmService : Service() {
             clearSnooze(alarmId)
         }
 
+        serviceScope.launch {
+            val label = if (alarmId != -1) {
+                dataStore.alarmsFlow.first().find { it.id == alarmId }?.label
+            } else null
+
+            showNotification(alarmId, label)
+        }
+
+        playAlarmSound()
+
+        return START_NOT_STICKY
+    }
+
+    private fun showNotification(alarmId: Int, label: String?) {
         val channelId = "ALARM_CHANNEL"
         val channelName = "Alarm Notifications"
         val notificationManager = getSystemService(NOTIFICATION_SERVICE) as NotificationManager
@@ -85,6 +100,7 @@ class AlarmService : Service() {
         val fullScreenIntent = Intent(this, AlarmActivity::class.java).apply {
             this.flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
             putExtra(EXTRA_ALARM_ID, alarmId)
+            putExtra(EXTRA_ALARM_LABEL, label)
         }
         val fullScreenPendingIntent = PendingIntent.getActivity(
             this, 0, fullScreenIntent, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
@@ -108,9 +124,12 @@ class AlarmService : Service() {
             this, 2, snoozeIntent, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
 
+        val contentTitle = label ?: "Alarm"
+        val contentText = if (label != null) "Time for $label!" else "Your alarm is ringing!"
+
         val notification = NotificationCompat.Builder(this, channelId)
-            .setContentTitle("Alarm")
-            .setContentText("Your alarm is ringing!")
+            .setContentTitle(contentTitle)
+            .setContentText(contentText)
             .setSmallIcon(android.R.drawable.ic_lock_idle_alarm)
             .setPriority(NotificationCompat.PRIORITY_MAX)
             .setCategory(NotificationCompat.CATEGORY_ALARM)
@@ -129,10 +148,6 @@ class AlarmService : Service() {
         } else {
             startForeground(1, notification)
         }
-
-        playAlarmSound()
-
-        return START_NOT_STICKY
     }
 
     private fun finishAlarm() {

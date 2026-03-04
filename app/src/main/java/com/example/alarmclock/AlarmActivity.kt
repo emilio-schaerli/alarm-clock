@@ -78,10 +78,12 @@ class AlarmActivity : ComponentActivity() {
         }
 
         val alarmId = intent.getIntExtra(AlarmService.EXTRA_ALARM_ID, -1)
+        val alarmLabel = intent.getStringExtra(AlarmService.EXTRA_ALARM_LABEL)
 
         setContent {
             AlarmClockTheme {
                 RingingScreen(
+                    label = alarmLabel,
                     onDismiss = {
                         val dismissIntent = Intent(this, AlarmService::class.java).apply {
                             action = AlarmService.ACTION_DISMISS
@@ -114,7 +116,7 @@ class AlarmActivity : ComponentActivity() {
 }
 
 @Composable
-fun RingingScreen(onDismiss: () -> Unit, onSnooze: () -> Unit) {
+fun RingingScreen(label: String?, onDismiss: () -> Unit, onSnooze: () -> Unit) {
     val currentTime = LocalTime.now().format(DateTimeFormatter.ofPattern("HH:mm"))
 
     Column(
@@ -141,9 +143,19 @@ fun RingingScreen(onDismiss: () -> Unit, onSnooze: () -> Unit) {
             fontWeight = FontWeight.Bold
         )
         
+        if (!label.isNullOrBlank()) {
+            Text(
+                text = label,
+                style = MaterialTheme.typography.headlineMedium,
+                color = MaterialTheme.colorScheme.onPrimary,
+                fontWeight = FontWeight.Bold,
+                modifier = Modifier.padding(top = 16.dp)
+            )
+        }
+        
         Text(
-            text = "Wake up!",
-            style = MaterialTheme.typography.headlineMedium,
+            text = if (label.isNullOrBlank()) "Wake up!" else "Time to get up!",
+            style = MaterialTheme.typography.headlineSmall,
             color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.8f)
         )
 
