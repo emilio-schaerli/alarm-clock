@@ -12,7 +12,10 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -21,6 +24,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Alarm
 import androidx.compose.material3.Button
@@ -30,8 +34,15 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -40,6 +51,9 @@ import java.time.LocalTime
 import java.time.format.DateTimeFormatter
 
 class AlarmActivity : ComponentActivity() {
+    private var currentAlarmId by mutableIntStateOf(-1)
+    private var currentAlarmLabel by mutableStateOf<String?>(null)
+
     private val finishReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
             if (intent?.action == AlarmService.ACTION_ALARM_DONE) {
@@ -51,7 +65,8 @@ class AlarmActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         
-        // Wake up the screen and show over the lock screen
+        updateFromIntent(intent)
+        
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O_MR1) {
             setShowWhenLocked(true)
             setTurnScreenOn(true)
@@ -68,7 +83,6 @@ class AlarmActivity : ComponentActivity() {
         
         enableEdgeToEdge()
 
-        // Register receiver to finish activity if alarm is dismissed/snoozed from notification
         val filter = IntentFilter(AlarmService.ACTION_ALARM_DONE)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             registerReceiver(finishReceiver, filter, Context.RECEIVER_NOT_EXPORTED)
@@ -77,25 +91,23 @@ class AlarmActivity : ComponentActivity() {
             registerReceiver(finishReceiver, filter)
         }
 
-        val alarmId = intent.getIntExtra(AlarmService.EXTRA_ALARM_ID, -1)
-        val alarmLabel = intent.getStringExtra(AlarmService.EXTRA_ALARM_LABEL)
-
         setContent {
             AlarmClockTheme {
                 RingingScreen(
-                    label = alarmLabel,
+                    label = currentAlarmLabel,
                     onDismiss = {
                         val dismissIntent = Intent(this, AlarmService::class.java).apply {
                             action = AlarmService.ACTION_DISMISS
-                            putExtra(AlarmService.EXTRA_ALARM_ID, alarmId)
+                            putExtra(AlarmService.EXTRA_ALARM_ID, currentAlarmId)
                         }
                         startService(dismissIntent)
                         finish()
                     },
-                    onSnooze = {
+                    onSnooze = { duration ->
                         val snoozeIntent = Intent(this, AlarmService::class.java).apply {
                             action = AlarmService.ACTION_SNOOZE
-                            putExtra(AlarmService.EXTRA_ALARM_ID, alarmId)
+                            putExtra(AlarmService.EXTRA_ALARM_ID, currentAlarmId)
+                            putExtra(AlarmService.EXTRA_SNOOZE_DURATION, duration)
                         }
                         startService(snoozeIntent)
                         finish()
@@ -103,6 +115,17 @@ class AlarmActivity : ComponentActivity() {
                 )
             }
         }
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        updateFromIntent(intent)
+    }
+
+    private fun updateFromIntent(intent: Intent?) {
+        currentAlarmId = intent?.getIntExtra(AlarmService.EXTRA_ALARM_ID, -1) ?: -1
+        currentAlarmLabel = intent?.getStringExtra(AlarmService.EXTRA_ALARM_LABEL)
     }
 
     override fun onDestroy() {
@@ -116,8 +139,9 @@ class AlarmActivity : ComponentActivity() {
 }
 
 @Composable
-fun RingingScreen(label: String?, onDismiss: () -> Unit, onSnooze: () -> Unit) {
-    val currentTime = LocalTime.now().format(DateTimeFormatter.ofPattern("HH:mm"))
+fun RingingScreen(label: String?, onDismiss: () -> Unit, onSnooze: (Int) -> Unit) {
+    val currentTime = LocalTime.now().format(DateTimeFormatter.ofPattern("h:mm a"))
+    var selectedSnooze by remember { mutableIntStateOf(10) }
 
     Column(
         modifier = Modifier
@@ -165,17 +189,49 @@ fun RingingScreen(label: String?, onDismiss: () -> Unit, onSnooze: () -> Unit) {
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            OutlinedButton(
-                onClick = onSnooze,
-                modifier = Modifier.weight(1f).height(64.dp),
-                colors = ButtonDefaults.outlinedButtonColors(
-                    contentColor = MaterialTheme.colorScheme.onPrimary
-                ),
-                border = ButtonDefaults.outlinedButtonBorder(enabled = true).copy(
-                    brush = androidx.compose.ui.graphics.SolidColor(MaterialTheme.colorScheme.onPrimary)
-                )
-            ) {
-                Text("Snooze", fontSize = 18.sp)
+            Column(modifier = Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally) {
+                OutlinedButton(
+                    onClick = { onSnooze(selectedSnooze) },
+                    modifier = Modifier.fillMaxWidth().height(64.dp),
+                    colors = ButtonDefaults.outlinedButtonColors(
+                        contentColor = MaterialTheme.colorScheme.onPrimary
+                    ),
+                    border = ButtonDefaults.outlinedButtonBorder(enabled = true).copy(
+                        brush = androidx.compose.ui.graphics.SolidColor(MaterialTheme.colorScheme.onPrimary)
+                    )
+                ) {
+                    Text("Snooze", fontSize = 18.sp)
+                }
+                
+                Spacer(modifier = Modifier.height(16.dp))
+                
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp, Alignment.CenterHorizontally)
+                ) {
+                    val snoozeOptions = listOf(5, 10, 15, 20)
+                    snoozeOptions.forEach { duration ->
+                        val isSelected = selectedSnooze == duration
+                        Box(
+                            modifier = Modifier
+                                .size(38.dp)
+                                .clip(CircleShape)
+                                .then(
+                                    if (isSelected) Modifier.background(MaterialTheme.colorScheme.onPrimary)
+                                    else Modifier.border(1.dp, MaterialTheme.colorScheme.onPrimary, CircleShape)
+                                )
+                                .clickable { selectedSnooze = duration },
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = duration.toString(),
+                                color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onPrimary,
+                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                                fontSize = 14.sp
+                            )
+                        }
+                    }
+                }
             }
 
             Button(

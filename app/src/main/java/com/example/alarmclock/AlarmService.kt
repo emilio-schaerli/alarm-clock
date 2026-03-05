@@ -33,6 +33,8 @@ class AlarmService : Service() {
         const val ACTION_ALARM_DONE = "com.example.alarmclock.ALARM_DONE"
         const val EXTRA_ALARM_ID = "ALARM_ID"
         const val EXTRA_ALARM_LABEL = "ALARM_LABEL"
+        const val EXTRA_SNOOZE_DURATION = "SNOOZE_DURATION"
+        const val DEFAULT_SNOOZE_MINUTES = 10
     }
 
     override fun onCreate() {
@@ -43,6 +45,7 @@ class AlarmService : Service() {
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         val alarmId = intent?.getIntExtra(EXTRA_ALARM_ID, -1) ?: -1
+        val snoozeDuration = intent?.getIntExtra(EXTRA_SNOOZE_DURATION, DEFAULT_SNOOZE_MINUTES) ?: DEFAULT_SNOOZE_MINUTES
 
         when (intent?.action) {
             ACTION_DISMISS -> {
@@ -57,7 +60,7 @@ class AlarmService : Service() {
             ACTION_SNOOZE -> {
                 serviceScope.launch {
                     if (alarmId != -1) {
-                        snoozeAlarm(alarmId)
+                        snoozeAlarm(alarmId, snoozeDuration)
                     }
                     finishAlarm()
                 }
@@ -65,17 +68,35 @@ class AlarmService : Service() {
             }
         }
 
-        // When the alarm fires, we should clear the snoozeUntil field because the snooze is now triggering.
+        // When the alarm fires, we should clear the snoozeUntil field.
         if (alarmId != -1) {
             clearSnooze(alarmId)
         }
+
+        // We still need to call startForeground to keep the service (and music) alive,
+        // but we'll use a silent, low-priority channel so it doesn't "pop up" or distract.
+        startForegroundServiceWithSilentNotification()
 
         serviceScope.launch {
             val label = if (alarmId != -1) {
                 dataStore.alarmsFlow.first().find { it.id == alarmId }?.label
             } else null
 
-            showNotification(alarmId, label)
+            // Directly launch the full-screen overlay activity.
+            val activityIntent = Intent(this@AlarmService, AlarmActivity::class.java).apply {
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or 
+                         Intent.FLAG_ACTIVITY_CLEAR_TOP or 
+                         Intent.FLAG_ACTIVITY_SINGLE_TOP or
+                         Intent.FLAG_ACTIVITY_REORDER_TO_FRONT)
+                putExtra(EXTRA_ALARM_ID, alarmId)
+                putExtra(EXTRA_ALARM_LABEL, label)
+            }
+            
+            try {
+                startActivity(activityIntent)
+            } catch (e: Exception) {
+                // If the activity fails to start for some reason, we're still safe as the service is running.
+            }
         }
 
         playAlarmSound()
@@ -83,64 +104,24 @@ class AlarmService : Service() {
         return START_NOT_STICKY
     }
 
-    private fun showNotification(alarmId: Int, label: String?) {
-        val channelId = "ALARM_CHANNEL"
-        val channelName = "Alarm Notifications"
+    private fun startForegroundServiceWithSilentNotification() {
+        val channelId = "ALARM_SERVICE_SILENT"
         val notificationManager = getSystemService(NOTIFICATION_SERVICE) as NotificationManager
 
-        val channel = NotificationChannel(channelId, channelName, NotificationManager.IMPORTANCE_HIGH).apply {
+        // Create a low-priority channel that doesn't make sound or pop up (heads-up)
+        val channel = NotificationChannel(channelId, "Active Alarm", NotificationManager.IMPORTANCE_LOW).apply {
             setSound(null, null)
-            enableVibration(true)
-            lockscreenVisibility = NotificationCompat.VISIBILITY_PUBLIC
-            lightColor = 0xFFFBC02D.toInt()
-            enableLights(true)
+            enableVibration(false)
+            setShowBadge(false)
         }
         notificationManager.createNotificationChannel(channel)
 
-        val fullScreenIntent = Intent(this, AlarmActivity::class.java).apply {
-            this.flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
-            putExtra(EXTRA_ALARM_ID, alarmId)
-            putExtra(EXTRA_ALARM_LABEL, label)
-        }
-        val fullScreenPendingIntent = PendingIntent.getActivity(
-            this, 0, fullScreenIntent, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-        )
-
-        // Dismiss action
-        val dismissIntent = Intent(this, AlarmService::class.java).apply {
-            action = ACTION_DISMISS
-            putExtra(EXTRA_ALARM_ID, alarmId)
-        }
-        val dismissPendingIntent = PendingIntent.getService(
-            this, 1, dismissIntent, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-        )
-
-        // Snooze action
-        val snoozeIntent = Intent(this, AlarmService::class.java).apply {
-            action = ACTION_SNOOZE
-            putExtra(EXTRA_ALARM_ID, alarmId)
-        }
-        val snoozePendingIntent = PendingIntent.getService(
-            this, 2, snoozeIntent, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-        )
-
-        val contentTitle = label ?: "Alarm"
-        val contentText = if (label != null) "Time for $label!" else "Your alarm is ringing!"
-
         val notification = NotificationCompat.Builder(this, channelId)
-            .setContentTitle(contentTitle)
-            .setContentText(contentText)
+            .setContentTitle("Alarm is ringing")
             .setSmallIcon(android.R.drawable.ic_lock_idle_alarm)
-            .setPriority(NotificationCompat.PRIORITY_MAX)
-            .setCategory(NotificationCompat.CATEGORY_ALARM)
-            .setFullScreenIntent(fullScreenPendingIntent, true)
+            .setPriority(NotificationCompat.PRIORITY_LOW)
+            .setCategory(NotificationCompat.CATEGORY_SERVICE)
             .setOngoing(true)
-            .setAutoCancel(false)
-            .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
-            .addAction(android.R.drawable.ic_menu_close_clear_cancel, "Snooze", snoozePendingIntent)
-            .addAction(android.R.drawable.checkbox_on_background, "Dismiss", dismissPendingIntent)
-            .setColor(0xFFFBC02D.toInt())
-            .setColorized(true)
             .build()
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
@@ -160,7 +141,6 @@ class AlarmService : Service() {
             val currentAlarms = dataStore.alarmsFlow.first()
             val alarmToDismiss = currentAlarms.find { it.id == alarmId }
             if (alarmToDismiss != null) {
-                // Keep enabled if it has repeating days or a future end date
                 val isRepeating = alarmToDismiss.daysOfWeek.isNotEmpty() || (alarmToDismiss.endDate != null)
                 val updatedAlarm = alarmToDismiss.copy(isEnabled = isRepeating, snoozeUntil = null)
                 
@@ -176,12 +156,12 @@ class AlarmService : Service() {
         }
     }
 
-    private suspend fun snoozeAlarm(alarmId: Int) {
+    private suspend fun snoozeAlarm(alarmId: Int, durationMinutes: Int) {
         withContext(Dispatchers.IO) {
             val currentAlarms = dataStore.alarmsFlow.first()
             val alarmToSnooze = currentAlarms.find { it.id == alarmId }
             if (alarmToSnooze != null) {
-                val snoozeTime = LocalDateTime.now().plusMinutes(10)
+                val snoozeTime = LocalDateTime.now().plusMinutes(durationMinutes.toLong())
                 val updatedAlarm = alarmToSnooze.copy(snoozeUntil = snoozeTime)
                 val updatedAlarms = currentAlarms.map {
                     if (it.id == alarmId) updatedAlarm else it

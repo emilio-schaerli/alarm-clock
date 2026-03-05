@@ -1,8 +1,11 @@
 package com.example.alarmclock
 
 import android.Manifest
+import android.content.Intent
+import android.net.Uri
 import android.os.Build
 import android.os.Bundle
+import android.provider.Settings
 import android.view.HapticFeedbackConstants
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -36,14 +39,17 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.CalendarToday
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Snooze
+import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.DateRangePicker
 import androidx.compose.material3.DatePickerDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FloatingActionButton
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -76,6 +82,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
@@ -156,11 +163,19 @@ fun MainScreen(scheduler: AlarmScheduler, dataStore: AlarmDataStore) {
 fun SettingsScreen(dataStore: AlarmDataStore) {
     val sortOrder by dataStore.sortOrderFlow.collectAsState(initial = AlarmSortOrder.TIME)
     val scope = rememberCoroutineScope()
+    val context = LocalContext.current
+    var hasOverlayPermission by remember { mutableStateOf(Settings.canDrawOverlays(context)) }
+
+    // Re-check permission when resuming
+    LaunchedEffect(Unit) {
+        hasOverlayPermission = Settings.canDrawOverlays(context)
+    }
 
     Column(
         modifier = Modifier
             .fillMaxSize()
             .padding(16.dp)
+            .verticalScroll(rememberScrollState())
     ) {
         TopAppBar(
             title = {
@@ -177,6 +192,47 @@ fun SettingsScreen(dataStore: AlarmDataStore) {
         )
         
         Spacer(modifier = Modifier.height(16.dp))
+
+        // Permission Card
+        if (!hasOverlayPermission) {
+            Card(
+                modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer),
+                shape = MaterialTheme.shapes.extraLarge
+            ) {
+                Column(modifier = Modifier.padding(20.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Default.Info, contentDescription = null, tint = MaterialTheme.colorScheme.error)
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            "Permission Required",
+                            style = MaterialTheme.typography.titleLarge,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onErrorContainer
+                        )
+                    }
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        "To show the alarm overlay while using other apps (like Chrome or TikTok), you need to enable 'Display over other apps'.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onErrorContainer
+                    )
+                    Spacer(modifier = Modifier.height(16.dp))
+                    Button(
+                        onClick = {
+                            val intent = Intent(
+                                Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                                Uri.parse("package:${context.packageName}")
+                            )
+                            context.startActivity(intent)
+                        },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text("Enable Permission")
+                    }
+                }
+            }
+        }
         
         Card(
             modifier = Modifier.fillMaxWidth(),
@@ -240,11 +296,9 @@ fun AlarmScreen(scheduler: AlarmScheduler, dataStore: AlarmDataStore) {
             AlarmSortOrder.TIME -> {
                 val now = ZonedDateTime.now()
                 rawAlarms.sortedBy { alarm ->
-                    // Use nextOccurrence for sorting. 
-                    // If the alarm is disabled, we still calculate when it WOULD ring for sorting consistency.
                     alarm.nextOccurrence(now) 
                         ?: alarm.copy(isEnabled = true, snoozeUntil = null).nextOccurrence(now) 
-                        ?: ZonedDateTime.now().plusYears(10) // Fallback for expired date ranges
+                        ?: ZonedDateTime.now().plusYears(10)
                 }
             }
             AlarmSortOrder.LABEL -> rawAlarms.sortedBy { it.label?.lowercase() ?: "" }
@@ -466,10 +520,11 @@ fun AlarmScreen(scheduler: AlarmScheduler, dataStore: AlarmDataStore) {
                                 onClick = { showDateRangePicker = true },
                                 modifier = Modifier.fillMaxWidth()
                             ) {
+                                val dateFormatter = DateTimeFormatter.ofPattern("MMM d")
                                 val dateText = if (startDate != null && endDate != null) {
-                                    "$startDate to $endDate"
+                                    "${startDate!!.format(dateFormatter)} to ${endDate!!.format(dateFormatter)}"
                                 } else if (startDate != null) {
-                                    "From $startDate"
+                                    "From ${startDate!!.format(dateFormatter)}"
                                 } else {
                                     "Not set"
                                 }
@@ -574,7 +629,8 @@ fun AlarmCard(
     onDelete: () -> Unit,
     onEdit: () -> Unit
 ) {
-    val formatter = DateTimeFormatter.ofPattern("h:mm a")
+    val timeFormatter = DateTimeFormatter.ofPattern("h:mm a")
+    val dateFormatter = DateTimeFormatter.ofPattern("MMM d")
     
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -601,7 +657,7 @@ fun AlarmCard(
             ) {
                 Column {
                     Text(
-                        text = alarm.time.format(formatter),
+                        text = alarm.time.format(timeFormatter),
                         style = MaterialTheme.typography.displayMedium.copy(fontSize = 48.sp),
                         color = if (alarm.isEnabled) MaterialTheme.colorScheme.onSurface else Color.Gray,
                         fontWeight = FontWeight.SemiBold
@@ -640,7 +696,7 @@ fun AlarmCard(
                     )
                     Spacer(modifier = Modifier.width(6.dp))
                     Text(
-                        text = "Snoozed until ${alarm.snoozeUntil.format(DateTimeFormatter.ofPattern("h:mm a"))}",
+                        text = "Snoozed until ${alarm.snoozeUntil.format(timeFormatter)}",
                         style = MaterialTheme.typography.bodyLarge,
                         color = MaterialTheme.colorScheme.primary,
                         fontWeight = FontWeight.Bold
@@ -674,11 +730,11 @@ fun AlarmCard(
                         Spacer(modifier = Modifier.width(6.dp))
                         Text(
                             text = if (alarm.startDate != null && alarm.endDate != null) {
-                                "${alarm.startDate} to ${alarm.endDate}"
+                                "${alarm.startDate!!.format(dateFormatter)} to ${alarm.endDate!!.format(dateFormatter)}"
                             } else if (alarm.startDate != null) {
-                                "From ${alarm.startDate}"
+                                "From ${alarm.startDate!!.format(dateFormatter)}"
                             } else {
-                                "Until ${alarm.endDate}"
+                                "Until ${alarm.endDate!!.format(dateFormatter)}"
                             },
                             style = MaterialTheme.typography.bodyLarge,
                             color = Color.Gray
