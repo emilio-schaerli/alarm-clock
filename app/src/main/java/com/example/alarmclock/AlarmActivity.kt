@@ -71,7 +71,7 @@ class AlarmActivity : ComponentActivity() {
         // Register receiver to finish activity if alarm is dismissed/snoozed from notification
         val filter = IntentFilter(AlarmService.ACTION_ALARM_DONE)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            registerReceiver(finishReceiver, filter, RECEIVER_NOT_EXPORTED)
+            registerReceiver(finishReceiver, filter, Context.RECEIVER_NOT_EXPORTED)
         } else {
             @Suppress("UnspecifiedRegisterReceiverFlag")
             registerReceiver(finishReceiver, filter)

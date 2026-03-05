@@ -114,7 +114,7 @@ class MainActivity : ComponentActivity() {
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 fun AlarmScreen(scheduler: AlarmScheduler, dataStore: AlarmDataStore) {
-    val alarms by dataStore.alarmsFlow.collectAsState(initial = emptyList())
+    val alarms by dataStore.alarmsFlow.collectAsState(initial = emptyList<AlarmItem>())
     val scope = rememberCoroutineScope()
     var showTimePicker by remember { mutableStateOf(false) }
     var editingAlarm by remember { mutableStateOf<AlarmItem?>(null) }
@@ -237,14 +237,14 @@ fun AlarmScreen(scheduler: AlarmScheduler, dataStore: AlarmDataStore) {
                     elevation = CardDefaults.cardElevation(defaultElevation = 6.dp)
                 ) {
                     Column(
-                        modifier = Modifier.padding(24.dp).verticalScroll(rememberScrollState()),
+                        modifier = Modifier.padding(16.dp).verticalScroll(rememberScrollState()),
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
                         Text(
                             if (editingAlarm == null) "Set alarm time" else "Edit alarm time",
                             style = MaterialTheme.typography.headlineSmall,
                             fontWeight = FontWeight.Bold,
-                            modifier = Modifier.align(Alignment.Start).padding(bottom = 20.dp)
+                            modifier = Modifier.align(Alignment.Start).padding(bottom = 8.dp)
                         )
                         TimePicker(
                             state = timePickerState,
@@ -264,15 +264,13 @@ fun AlarmScreen(scheduler: AlarmScheduler, dataStore: AlarmDataStore) {
                             )
                         )
                         
-                        Spacer(modifier = Modifier.height(24.dp))
-                        HorizontalDivider()
-                        Spacer(modifier = Modifier.height(24.dp))
+                        Spacer(modifier = Modifier.height(8.dp))
 
                         // Label input
                         OutlinedTextField(
                             value = label,
                             onValueChange = { label = it },
-                            label = { Text("Label (e.g. Basketball Practice)") },
+                            label = { Text("Label") },
                             modifier = Modifier.fillMaxWidth(),
                             singleLine = true,
                             colors = OutlinedTextFieldDefaults.colors(
@@ -283,12 +281,12 @@ fun AlarmScreen(scheduler: AlarmScheduler, dataStore: AlarmDataStore) {
                             leadingIcon = { Icon(Icons.AutoMirrored.Filled.Label, contentDescription = null, tint = MaterialTheme.colorScheme.primary) }
                         )
 
-                        Spacer(modifier = Modifier.height(24.dp))
+                        Spacer(modifier = Modifier.height(8.dp))
 
                         // Days of week selector
                         Text("Repeat", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, modifier = Modifier.align(Alignment.Start))
                         Row(
-                            modifier = Modifier.fillMaxWidth().padding(vertical = 12.dp),
+                            modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
                             horizontalArrangement = Arrangement.SpaceBetween
                         ) {
                             val days = listOf("M", "T", "W", "T", "F", "S", "S")
@@ -297,7 +295,7 @@ fun AlarmScreen(scheduler: AlarmScheduler, dataStore: AlarmDataStore) {
                                 val isSelected = selectedDays.contains(dayNum)
                                 Surface(
                                     modifier = Modifier
-                                        .size(40.dp)
+                                        .size(38.dp)
                                         .clickable {
                                             selectedDays = if (isSelected) selectedDays - dayNum else selectedDays + dayNum
                                         },
@@ -317,7 +315,7 @@ fun AlarmScreen(scheduler: AlarmScheduler, dataStore: AlarmDataStore) {
                             }
                         }
 
-                        Spacer(modifier = Modifier.height(16.dp))
+                        Spacer(modifier = Modifier.height(4.dp))
 
                         // Date range selector
                         Column(modifier = Modifier.fillMaxWidth()) {
@@ -347,13 +345,13 @@ fun AlarmScreen(scheduler: AlarmScheduler, dataStore: AlarmDataStore) {
                         }
 
                         Row(
-                            modifier = Modifier.fillMaxWidth().padding(top = 24.dp),
+                            modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
                             horizontalArrangement = Arrangement.End
                         ) {
-                            androidx.compose.material3.TextButton(onClick = { showTimePicker = false }) {
+                            TextButton(onClick = { showTimePicker = false }) {
                                 Text("Cancel", style = MaterialTheme.typography.labelLarge.copy(fontSize = 16.sp))
                             }
-                            androidx.compose.material3.TextButton(onClick = {
+                            TextButton(onClick = {
                                 scope.launch {
                                     val newTime = LocalTime.of(timePickerState.hour, timePickerState.minute)
                                     
