@@ -25,14 +25,18 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Label
+import androidx.compose.material.icons.filled.AccessAlarm
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.CalendarToday
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Snooze
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -40,12 +44,14 @@ import androidx.compose.material3.DateRangePicker
 import androidx.compose.material3.DatePickerDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FloatingActionButton
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.NavigationBar
+import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
+import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
@@ -62,6 +68,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -70,6 +77,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -80,6 +88,7 @@ import java.time.Instant
 import java.time.LocalDate
 import java.time.LocalTime
 import java.time.ZoneId
+import java.time.ZonedDateTime
 import java.time.format.DateTimeFormatter
 
 class MainActivity : ComponentActivity() {
@@ -105,7 +114,116 @@ class MainActivity : ComponentActivity() {
                     }
                 }
 
-                AlarmScreen(scheduler, dataStore)
+                MainScreen(scheduler, dataStore)
+            }
+        }
+    }
+}
+
+@Composable
+fun MainScreen(scheduler: AlarmScheduler, dataStore: AlarmDataStore) {
+    var selectedTab by remember { mutableIntStateOf(0) }
+
+    Scaffold(
+        bottomBar = {
+            NavigationBar {
+                NavigationBarItem(
+                    selected = selectedTab == 0,
+                    onClick = { selectedTab = 0 },
+                    icon = { Icon(Icons.Default.AccessAlarm, contentDescription = "Alarms") },
+                    label = { Text("Alarms") }
+                )
+                NavigationBarItem(
+                    selected = selectedTab == 1,
+                    onClick = { selectedTab = 1 },
+                    icon = { Icon(Icons.Default.Settings, contentDescription = "Settings") },
+                    label = { Text("Settings") }
+                )
+            }
+        }
+    ) { innerPadding ->
+        Box(modifier = Modifier.padding(innerPadding)) {
+            when (selectedTab) {
+                0 -> AlarmScreen(scheduler, dataStore)
+                1 -> SettingsScreen(dataStore)
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun SettingsScreen(dataStore: AlarmDataStore) {
+    val sortOrder by dataStore.sortOrderFlow.collectAsState(initial = AlarmSortOrder.TIME)
+    val scope = rememberCoroutineScope()
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(16.dp)
+    ) {
+        TopAppBar(
+            title = {
+                Text(
+                    "Settings",
+                    style = MaterialTheme.typography.displayMedium.copy(fontSize = 36.sp),
+                    fontWeight = FontWeight.Bold
+                )
+            },
+            colors = TopAppBarDefaults.topAppBarColors(
+                containerColor = Color.Transparent,
+                titleContentColor = MaterialTheme.colorScheme.onBackground
+            )
+        )
+        
+        Spacer(modifier = Modifier.height(16.dp))
+        
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer),
+            shape = MaterialTheme.shapes.extraLarge
+        ) {
+            Column(modifier = Modifier.padding(20.dp)) {
+                Text(
+                    "Sort Alarms By",
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.primary
+                )
+                Spacer(modifier = Modifier.height(12.dp))
+                
+                val options = listOf(
+                    "Time (Closest First)" to AlarmSortOrder.TIME,
+                    "Alarm Label" to AlarmSortOrder.LABEL,
+                    "Order Set" to AlarmSortOrder.ORDER_SET
+                )
+                
+                Column(Modifier.selectableGroup()) {
+                    options.forEach { (text, order) ->
+                        Row(
+                            Modifier
+                                .fillMaxWidth()
+                                .height(56.dp)
+                                .selectable(
+                                    selected = (sortOrder == order),
+                                    onClick = { scope.launch { dataStore.saveSortOrder(order) } },
+                                    role = Role.RadioButton
+                                )
+                                .padding(horizontal = 16.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            RadioButton(
+                                selected = (sortOrder == order),
+                                onClick = null
+                            )
+                            Text(
+                                text = text,
+                                style = MaterialTheme.typography.bodyLarge,
+                                modifier = Modifier.padding(start = 16.dp)
+                            )
+                        }
+                    }
+                }
             }
         }
     }
@@ -114,7 +232,26 @@ class MainActivity : ComponentActivity() {
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 fun AlarmScreen(scheduler: AlarmScheduler, dataStore: AlarmDataStore) {
-    val alarms by dataStore.alarmsFlow.collectAsState(initial = emptyList<AlarmItem>())
+    val rawAlarms by dataStore.alarmsFlow.collectAsState(initial = emptyList<AlarmItem>())
+    val sortOrder by dataStore.sortOrderFlow.collectAsState(initial = AlarmSortOrder.TIME)
+    
+    val alarms = remember(rawAlarms, sortOrder) {
+        when (sortOrder) {
+            AlarmSortOrder.TIME -> {
+                val now = ZonedDateTime.now()
+                rawAlarms.sortedBy { alarm ->
+                    // Use nextOccurrence for sorting. 
+                    // If the alarm is disabled, we still calculate when it WOULD ring for sorting consistency.
+                    alarm.nextOccurrence(now) 
+                        ?: alarm.copy(isEnabled = true, snoozeUntil = null).nextOccurrence(now) 
+                        ?: ZonedDateTime.now().plusYears(10) // Fallback for expired date ranges
+                }
+            }
+            AlarmSortOrder.LABEL -> rawAlarms.sortedBy { it.label?.lowercase() ?: "" }
+            AlarmSortOrder.ORDER_SET -> rawAlarms.sortedBy { it.id }
+        }
+    }
+
     val scope = rememberCoroutineScope()
     var showTimePicker by remember { mutableStateOf(false) }
     var editingAlarm by remember { mutableStateOf<AlarmItem?>(null) }
@@ -174,7 +311,7 @@ fun AlarmScreen(scheduler: AlarmScheduler, dataStore: AlarmDataStore) {
                             alarm = alarm,
                             onToggle = { isEnabled ->
                                 scope.launch {
-                                    val updatedAlarms = alarms.map {
+                                    val updatedAlarms = rawAlarms.map {
                                         if (it.id == alarm.id) it.copy(isEnabled = isEnabled, snoozeUntil = null) else it
                                     }
                                     dataStore.saveAlarms(updatedAlarms)
@@ -186,7 +323,7 @@ fun AlarmScreen(scheduler: AlarmScheduler, dataStore: AlarmDataStore) {
                             },
                             onDelete = {
                                 scope.launch {
-                                    val updatedAlarms = alarms.filter { it.id != alarm.id }
+                                    val updatedAlarms = rawAlarms.filter { it.id != alarm.id }
                                     dataStore.saveAlarms(updatedAlarms)
                                     scheduler.cancel(alarm)
                                 }
@@ -357,14 +494,14 @@ fun AlarmScreen(scheduler: AlarmScheduler, dataStore: AlarmDataStore) {
                                     
                                     if (editingAlarm == null) {
                                         val newAlarm = AlarmItem(
-                                            id = (alarms.maxOfOrNull { it.id } ?: 0) + 1,
+                                            id = (rawAlarms.maxOfOrNull { it.id } ?: 0) + 1,
                                             time = newTime,
                                             daysOfWeek = selectedDays,
                                             startDate = startDate,
                                             endDate = endDate,
                                             label = label.ifBlank { null }
                                         )
-                                        val updatedAlarms = alarms + newAlarm
+                                        val updatedAlarms = rawAlarms + newAlarm
                                         dataStore.saveAlarms(updatedAlarms)
                                         scheduler.schedule(newAlarm)
                                     } else {
@@ -377,7 +514,7 @@ fun AlarmScreen(scheduler: AlarmScheduler, dataStore: AlarmDataStore) {
                                             snoozeUntil = null, // Reset snooze on edit
                                             label = label.ifBlank { null }
                                         )
-                                        val updatedAlarms = alarms.map {
+                                        val updatedAlarms = rawAlarms.map {
                                             if (it.id == updatedAlarm.id) updatedAlarm else it
                                         }
                                         dataStore.saveAlarms(updatedAlarms)

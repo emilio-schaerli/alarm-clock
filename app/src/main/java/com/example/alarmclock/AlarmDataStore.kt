@@ -17,6 +17,10 @@ import java.time.LocalTime
 
 private val Context.dataStore: DataStore<Preferences> by preferencesDataStore(name = "alarms")
 
+enum class AlarmSortOrder {
+    TIME, LABEL, ORDER_SET
+}
+
 @Serializable
 data class AlarmData(
     val id: Int,
@@ -32,6 +36,7 @@ data class AlarmData(
 
 class AlarmDataStore(private val context: Context) {
     private val alarmsKey = stringPreferencesKey("alarms_list")
+    private val sortOrderKey = stringPreferencesKey("sort_order")
 
     val alarmsFlow: Flow<List<AlarmItem>> = context.dataStore.data
         .map { preferences ->
@@ -54,6 +59,16 @@ class AlarmDataStore(private val context: Context) {
             }
         }
 
+    val sortOrderFlow: Flow<AlarmSortOrder> = context.dataStore.data
+        .map { preferences ->
+            val sortOrderName = preferences[sortOrderKey] ?: AlarmSortOrder.TIME.name
+            try {
+                AlarmSortOrder.valueOf(sortOrderName)
+            } catch (e: Exception) {
+                AlarmSortOrder.TIME
+            }
+        }
+
     suspend fun saveAlarms(alarms: List<AlarmItem>) {
         val alarmsData = alarms.map { 
             AlarmData(
@@ -70,6 +85,12 @@ class AlarmDataStore(private val context: Context) {
         }
         context.dataStore.edit { preferences ->
             preferences[alarmsKey] = Json.encodeToString(alarmsData)
+        }
+    }
+
+    suspend fun saveSortOrder(sortOrder: AlarmSortOrder) {
+        context.dataStore.edit { preferences ->
+            preferences[sortOrderKey] = sortOrder.name
         }
     }
 }
