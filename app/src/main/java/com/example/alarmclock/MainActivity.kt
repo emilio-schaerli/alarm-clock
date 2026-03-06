@@ -1,7 +1,9 @@
 package com.example.alarmclock
 
 import android.Manifest
+import android.app.Activity
 import android.content.Intent
+import android.media.RingtoneManager
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
@@ -37,9 +39,12 @@ import androidx.compose.material.icons.automirrored.filled.Label
 import androidx.compose.material.icons.filled.AccessAlarm
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.CalendarToday
+import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.MusicNote
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Snooze
 import androidx.compose.material3.Button
@@ -95,6 +100,7 @@ import java.time.Instant
 import java.time.LocalDate
 import java.time.LocalTime
 import java.time.ZoneId
+import java.time.ZoneOffset
 import java.time.ZonedDateTime
 import java.time.format.DateTimeFormatter
 
@@ -162,9 +168,32 @@ fun MainScreen(scheduler: AlarmScheduler, dataStore: AlarmDataStore) {
 @Composable
 fun SettingsScreen(dataStore: AlarmDataStore) {
     val sortOrder by dataStore.sortOrderFlow.collectAsState(initial = AlarmSortOrder.TIME)
+    val ringtoneName by dataStore.ringtoneNameFlow.collectAsState(initial = "Default")
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
     var hasOverlayPermission by remember { mutableStateOf(Settings.canDrawOverlays(context)) }
+
+    val ringtonePickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.StartActivityForResult(),
+        onResult = { result ->
+            if (result.resultCode == Activity.RESULT_OK) {
+                val uri = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                    result.data?.getParcelableExtra(RingtoneManager.EXTRA_RINGTONE_PICKED_URI, Uri::class.java)
+                } else {
+                    @Suppress("DEPRECATION")
+                    result.data?.getParcelableExtra(RingtoneManager.EXTRA_RINGTONE_PICKED_URI)
+                }
+                
+                if (uri != null) {
+                    val ringtone = RingtoneManager.getRingtone(context, uri)
+                    val name = ringtone.getTitle(context)
+                    scope.launch {
+                        dataStore.saveRingtone(uri.toString(), name)
+                    }
+                }
+            }
+        }
+    )
 
     // Re-check permission when resuming
     LaunchedEffect(Unit) {
@@ -234,8 +263,9 @@ fun SettingsScreen(dataStore: AlarmDataStore) {
             }
         }
         
+        // Sorting Card
         Card(
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp),
             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer),
             shape = MaterialTheme.shapes.extraLarge
         ) {
@@ -282,6 +312,84 @@ fun SettingsScreen(dataStore: AlarmDataStore) {
                 }
             }
         }
+
+        // Ringtone Card
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer),
+            shape = MaterialTheme.shapes.extraLarge
+        ) {
+            Column(modifier = Modifier.padding(20.dp)) {
+                Text(
+                    "Alarm Ringtone",
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.primary
+                )
+                Spacer(modifier = Modifier.height(12.dp))
+                
+                Row(
+                    modifier = Modifier.fillMaxWidth().clickable {
+                        val intent = Intent(RingtoneManager.ACTION_RINGTONE_PICKER).apply {
+                            putExtra(RingtoneManager.EXTRA_RINGTONE_TYPE, RingtoneManager.TYPE_ALARM)
+                            putExtra(RingtoneManager.EXTRA_RINGTONE_TITLE, "Select Alarm Tone")
+                            putExtra(RingtoneManager.EXTRA_RINGTONE_EXISTING_URI, null as Uri?)
+                            putExtra(RingtoneManager.EXTRA_RINGTONE_SHOW_DEFAULT, true)
+                            putExtra(RingtoneManager.EXTRA_RINGTONE_SHOW_SILENT, false)
+                        }
+                        ringtonePickerLauncher.launch(intent)
+                    },
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Default.MusicNote, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                        Spacer(modifier = Modifier.width(16.dp))
+                        Column {
+                            Text("Current Tone", style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Bold)
+                            Text(ringtoneName, style = MaterialTheme.typography.bodyMedium, color = Color.Gray)
+                        }
+                    }
+                    Text("Change", color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
+                }
+
+                Spacer(modifier = Modifier.height(16.dp))
+                HorizontalDivider(color = Color.LightGray.copy(alpha = 0.5f))
+                Spacer(modifier = Modifier.height(16.dp))
+
+                Text("Presets", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                Spacer(modifier = Modifier.height(8.dp))
+
+                val presets = listOf(
+                    "System Default" to null,
+                    "Alarm Clock" to RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM).toString()
+                )
+
+                presets.forEach { (name, uriString) ->
+                    Row(
+                        Modifier
+                            .fillMaxWidth()
+                            .height(48.dp)
+                            .clickable {
+                                scope.launch {
+                                    dataStore.saveRingtone(uriString, name)
+                                }
+                            },
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        RadioButton(
+                            selected = (ringtoneName == name),
+                            onClick = null
+                        )
+                        Text(
+                            text = name,
+                            style = MaterialTheme.typography.bodyLarge,
+                            modifier = Modifier.padding(start = 16.dp)
+                        )
+                    }
+                }
+            }
+        }
     }
 }
 
@@ -290,19 +398,36 @@ fun SettingsScreen(dataStore: AlarmDataStore) {
 fun AlarmScreen(scheduler: AlarmScheduler, dataStore: AlarmDataStore) {
     val rawAlarms by dataStore.alarmsFlow.collectAsState(initial = emptyList<AlarmItem>())
     val sortOrder by dataStore.sortOrderFlow.collectAsState(initial = AlarmSortOrder.TIME)
+    var searchQuery by remember { mutableStateOf("") }
     
-    val alarms = remember(rawAlarms, sortOrder) {
+    val filteredAlarms = remember(rawAlarms, searchQuery) {
+        if (searchQuery.isBlank()) {
+            rawAlarms
+        } else {
+            rawAlarms.filter { it.label?.contains(searchQuery, ignoreCase = true) == true }
+        }
+    }
+
+    val alarms = remember(filteredAlarms, sortOrder) {
         when (sortOrder) {
             AlarmSortOrder.TIME -> {
                 val now = ZonedDateTime.now()
-                rawAlarms.sortedBy { alarm ->
-                    alarm.nextOccurrence(now) 
-                        ?: alarm.copy(isEnabled = true, snoozeUntil = null).nextOccurrence(now) 
-                        ?: ZonedDateTime.now().plusYears(10)
+                filteredAlarms.sortedWith { a: AlarmItem, b: AlarmItem ->
+                    if (a.isEnabled != b.isEnabled) {
+                        if (a.isEnabled) -1 else 1
+                    } else {
+                        val nextA = a.nextOccurrence(now) 
+                            ?: a.copy(isEnabled = true, snoozeUntil = null).nextOccurrence(now) 
+                            ?: ZonedDateTime.now().plusYears(10)
+                        val nextB = b.nextOccurrence(now) 
+                            ?: b.copy(isEnabled = true, snoozeUntil = null).nextOccurrence(now) 
+                            ?: ZonedDateTime.now().plusYears(10)
+                        nextA.compareTo(nextB)
+                    }
                 }
             }
-            AlarmSortOrder.LABEL -> rawAlarms.sortedBy { it.label?.lowercase() ?: "" }
-            AlarmSortOrder.ORDER_SET -> rawAlarms.sortedBy { it.id }
+            AlarmSortOrder.LABEL -> filteredAlarms.sortedBy { it.label?.lowercase() ?: "" }
+            AlarmSortOrder.ORDER_SET -> filteredAlarms.sortedBy { it.id }
         }
     }
 
@@ -347,10 +472,37 @@ fun AlarmScreen(scheduler: AlarmScheduler, dataStore: AlarmDataStore) {
                 .fillMaxSize()
                 .padding(horizontal = 16.dp)
         ) {
+            // Search Bar
+            OutlinedTextField(
+                value = searchQuery,
+                onValueChange = { searchQuery = it },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 8.dp),
+                placeholder = { Text("Search by label...") },
+                leadingIcon = { Icon(Icons.Default.Search, contentDescription = null, tint = MaterialTheme.colorScheme.primary) },
+                trailingIcon = {
+                    if (searchQuery.isNotEmpty()) {
+                        IconButton(onClick = { searchQuery = "" }) {
+                            Icon(Icons.Default.Clear, contentDescription = "Clear", tint = Color.Gray)
+                        }
+                    }
+                },
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedBorderColor = MaterialTheme.colorScheme.primary,
+                    unfocusedBorderColor = Color.LightGray,
+                    cursorColor = MaterialTheme.colorScheme.primary,
+                    focusedContainerColor = MaterialTheme.colorScheme.surfaceContainer.copy(alpha = 0.3f),
+                    unfocusedContainerColor = MaterialTheme.colorScheme.surfaceContainer.copy(alpha = 0.1f)
+                ),
+                shape = MaterialTheme.shapes.extraLarge,
+                singleLine = true
+            )
+
             if (alarms.isEmpty()) {
                 Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                     Text(
-                        "No alarms set", 
+                        if (searchQuery.isEmpty()) "No alarms set" else "No matching alarms found", 
                         style = MaterialTheme.typography.headlineSmall, 
                         color = Color.Gray
                     )
@@ -358,7 +510,7 @@ fun AlarmScreen(scheduler: AlarmScheduler, dataStore: AlarmDataStore) {
             } else {
                 LazyColumn(
                     verticalArrangement = Arrangement.spacedBy(16.dp),
-                    modifier = Modifier.padding(top = 16.dp)
+                    modifier = Modifier.padding(top = 8.dp)
                 ) {
                     items(alarms, key = { it.id }) { alarm ->
                         AlarmCard(
@@ -588,18 +740,18 @@ fun AlarmScreen(scheduler: AlarmScheduler, dataStore: AlarmDataStore) {
 
             if (showDateRangePicker) {
                 val dateRangePickerState = rememberDateRangePickerState(
-                    initialSelectedStartDateMillis = startDate?.atStartOfDay(ZoneId.systemDefault())?.toInstant()?.toEpochMilli(),
-                    initialSelectedEndDateMillis = endDate?.atStartOfDay(ZoneId.systemDefault())?.toInstant()?.toEpochMilli()
+                    initialSelectedStartDateMillis = startDate?.atStartOfDay(ZoneOffset.UTC)?.toInstant()?.toEpochMilli(),
+                    initialSelectedEndDateMillis = endDate?.atStartOfDay(ZoneOffset.UTC)?.toInstant()?.toEpochMilli()
                 )
                 DatePickerDialog(
                     onDismissRequest = { showDateRangePicker = false },
                     confirmButton = {
                         TextButton(onClick = {
                             startDate = dateRangePickerState.selectedStartDateMillis?.let {
-                                Instant.ofEpochMilli(it).atZone(ZoneId.systemDefault()).toLocalDate()
+                                Instant.ofEpochMilli(it).atZone(ZoneOffset.UTC).toLocalDate()
                             }
                             endDate = dateRangePickerState.selectedEndDateMillis?.let {
-                                Instant.ofEpochMilli(it).atZone(ZoneId.systemDefault()).toLocalDate()
+                                Instant.ofEpochMilli(it).atZone(ZoneOffset.UTC).toLocalDate()
                             }
                             showDateRangePicker = false
                         }) { Text("OK", style = MaterialTheme.typography.labelLarge) }

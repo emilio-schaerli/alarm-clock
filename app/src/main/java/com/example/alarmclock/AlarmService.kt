@@ -9,6 +9,7 @@ import android.content.pm.ServiceInfo
 import android.media.AudioAttributes
 import android.media.MediaPlayer
 import android.media.RingtoneManager
+import android.net.Uri
 import android.os.Build
 import android.os.IBinder
 import androidx.core.app.NotificationCompat
@@ -68,21 +69,17 @@ class AlarmService : Service() {
             }
         }
 
-        // When the alarm fires, we should clear the snoozeUntil field.
         if (alarmId != -1) {
             clearSnooze(alarmId)
         }
 
-        // We still need to call startForeground to keep the service (and music) alive,
-        // but we'll use a silent, low-priority channel so it doesn't "pop up" or distract.
         startForegroundServiceWithSilentNotification()
 
         serviceScope.launch {
-            val label = if (alarmId != -1) {
-                dataStore.alarmsFlow.first().find { it.id == alarmId }?.label
-            } else null
+            val alarmsList = dataStore.alarmsFlow.first()
+            val alarmItem = alarmsList.find { it.id == alarmId }
+            val label = alarmItem?.label
 
-            // Directly launch the full-screen overlay activity.
             val activityIntent = Intent(this@AlarmService, AlarmActivity::class.java).apply {
                 addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or 
                          Intent.FLAG_ACTIVITY_CLEAR_TOP or 
@@ -95,11 +92,10 @@ class AlarmService : Service() {
             try {
                 startActivity(activityIntent)
             } catch (e: Exception) {
-                // If the activity fails to start for some reason, we're still safe as the service is running.
             }
+            
+            playAlarmSound()
         }
-
-        playAlarmSound()
 
         return START_NOT_STICKY
     }
@@ -108,7 +104,6 @@ class AlarmService : Service() {
         val channelId = "ALARM_SERVICE_SILENT"
         val notificationManager = getSystemService(NOTIFICATION_SERVICE) as NotificationManager
 
-        // Create a low-priority channel that doesn't make sound or pop up (heads-up)
         val channel = NotificationChannel(channelId, "Active Alarm", NotificationManager.IMPORTANCE_LOW).apply {
             setSound(null, null)
             enableVibration(false)
@@ -182,10 +177,15 @@ class AlarmService : Service() {
         }
     }
 
-    private fun playAlarmSound() {
+    private suspend fun playAlarmSound() {
         if (mediaPlayer == null) {
-            val alarmUri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM)
-                ?: RingtoneManager.getDefaultUri(RingtoneManager.TYPE_RINGTONE)
+            val savedUriString = dataStore.ringtoneUriFlow.first()
+            val alarmUri = if (savedUriString != null) {
+                Uri.parse(savedUriString)
+            } else {
+                RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM)
+                    ?: RingtoneManager.getDefaultUri(RingtoneManager.TYPE_RINGTONE)
+            }
             
             mediaPlayer = MediaPlayer().apply {
                 setDataSource(this@AlarmService, alarmUri)

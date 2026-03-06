@@ -170,20 +170,12 @@ fun RingingScreen(label: String?, onDismiss: () -> Unit, onSnooze: (Int) -> Unit
             fontWeight = FontWeight.Bold
         )
         
-        if (!label.isNullOrBlank()) {
-            Text(
-                text = label,
-                style = MaterialTheme.typography.headlineMedium,
-                color = Color.Black,
-                fontWeight = FontWeight.Bold,
-                modifier = Modifier.padding(top = 16.dp)
-            )
-        }
-        
         Text(
-            text = if (label.isNullOrBlank()) "Wake up!" else "Time to get up!",
-            style = MaterialTheme.typography.headlineSmall,
-            color = Color.Gray
+            text = label ?: "Alarm",
+            style = MaterialTheme.typography.headlineMedium,
+            color = grayColor,
+            fontWeight = FontWeight.Bold,
+            modifier = Modifier.padding(top = 16.dp)
         )
 
         Spacer(modifier = Modifier.height(64.dp))

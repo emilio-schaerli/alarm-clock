@@ -37,6 +37,8 @@ data class AlarmData(
 class AlarmDataStore(private val context: Context) {
     private val alarmsKey = stringPreferencesKey("alarms_list")
     private val sortOrderKey = stringPreferencesKey("sort_order")
+    private val ringtoneUriKey = stringPreferencesKey("ringtone_uri")
+    private val ringtoneNameKey = stringPreferencesKey("ringtone_name")
 
     val alarmsFlow: Flow<List<AlarmItem>> = context.dataStore.data
         .map { preferences ->
@@ -69,6 +71,12 @@ class AlarmDataStore(private val context: Context) {
             }
         }
 
+    val ringtoneUriFlow: Flow<String?> = context.dataStore.data
+        .map { preferences -> preferences[ringtoneUriKey] }
+
+    val ringtoneNameFlow: Flow<String> = context.dataStore.data
+        .map { preferences -> preferences[ringtoneNameKey] ?: "Default" }
+
     suspend fun saveAlarms(alarms: List<AlarmItem>) {
         val alarmsData = alarms.map { 
             AlarmData(
@@ -91,6 +99,17 @@ class AlarmDataStore(private val context: Context) {
     suspend fun saveSortOrder(sortOrder: AlarmSortOrder) {
         context.dataStore.edit { preferences ->
             preferences[sortOrderKey] = sortOrder.name
+        }
+    }
+
+    suspend fun saveRingtone(uri: String?, name: String) {
+        context.dataStore.edit { preferences ->
+            if (uri == null) {
+                preferences.remove(ringtoneUriKey)
+            } else {
+                preferences[ringtoneUriKey] = uri
+            }
+            preferences[ringtoneNameKey] = name
         }
     }
 }
