@@ -31,7 +31,6 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -142,11 +141,15 @@ class AlarmActivity : ComponentActivity() {
 fun RingingScreen(label: String?, onDismiss: () -> Unit, onSnooze: (Int) -> Unit) {
     val currentTime = LocalTime.now().format(DateTimeFormatter.ofPattern("h:mm a"))
     var selectedSnooze by remember { mutableIntStateOf(10) }
+    
+    // Updated to use YellowPrimary (from theme's primary color)
+    val yellowPrimary = MaterialTheme.colorScheme.primary
+    val grayColor = Color.Gray
 
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(MaterialTheme.colorScheme.primary)
+            .background(Color.White)
             .padding(32.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center
@@ -155,7 +158,7 @@ fun RingingScreen(label: String?, onDismiss: () -> Unit, onSnooze: (Int) -> Unit
             imageVector = Icons.Default.Alarm,
             contentDescription = null,
             modifier = Modifier.size(100.dp),
-            tint = MaterialTheme.colorScheme.onPrimary
+            tint = yellowPrimary
         )
         
         Spacer(modifier = Modifier.height(32.dp))
@@ -163,7 +166,7 @@ fun RingingScreen(label: String?, onDismiss: () -> Unit, onSnooze: (Int) -> Unit
         Text(
             text = currentTime,
             style = MaterialTheme.typography.displayLarge.copy(fontSize = 80.sp),
-            color = MaterialTheme.colorScheme.onPrimary,
+            color = yellowPrimary,
             fontWeight = FontWeight.Bold
         )
         
@@ -171,7 +174,7 @@ fun RingingScreen(label: String?, onDismiss: () -> Unit, onSnooze: (Int) -> Unit
             Text(
                 text = label,
                 style = MaterialTheme.typography.headlineMedium,
-                color = MaterialTheme.colorScheme.onPrimary,
+                color = Color.Black,
                 fontWeight = FontWeight.Bold,
                 modifier = Modifier.padding(top = 16.dp)
             )
@@ -180,7 +183,7 @@ fun RingingScreen(label: String?, onDismiss: () -> Unit, onSnooze: (Int) -> Unit
         Text(
             text = if (label.isNullOrBlank()) "Wake up!" else "Time to get up!",
             style = MaterialTheme.typography.headlineSmall,
-            color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.8f)
+            color = Color.Gray
         )
 
         Spacer(modifier = Modifier.height(64.dp))
@@ -190,17 +193,16 @@ fun RingingScreen(label: String?, onDismiss: () -> Unit, onSnooze: (Int) -> Unit
             horizontalArrangement = Arrangement.spacedBy(16.dp)
         ) {
             Column(modifier = Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally) {
-                OutlinedButton(
+                Button(
                     onClick = { onSnooze(selectedSnooze) },
                     modifier = Modifier.fillMaxWidth().height(64.dp),
-                    colors = ButtonDefaults.outlinedButtonColors(
-                        contentColor = MaterialTheme.colorScheme.onPrimary
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = yellowPrimary,
+                        contentColor = Color.Black
                     ),
-                    border = ButtonDefaults.outlinedButtonBorder(enabled = true).copy(
-                        brush = androidx.compose.ui.graphics.SolidColor(MaterialTheme.colorScheme.onPrimary)
-                    )
+                    shape = MaterialTheme.shapes.extraLarge
                 ) {
-                    Text("Snooze", fontSize = 18.sp)
+                    Text("Snooze", fontSize = 18.sp, fontWeight = FontWeight.Bold)
                 }
                 
                 Spacer(modifier = Modifier.height(16.dp))
@@ -217,15 +219,15 @@ fun RingingScreen(label: String?, onDismiss: () -> Unit, onSnooze: (Int) -> Unit
                                 .size(38.dp)
                                 .clip(CircleShape)
                                 .then(
-                                    if (isSelected) Modifier.background(MaterialTheme.colorScheme.onPrimary)
-                                    else Modifier.border(1.dp, MaterialTheme.colorScheme.onPrimary, CircleShape)
+                                    if (isSelected) Modifier.background(yellowPrimary)
+                                    else Modifier.border(1.dp, yellowPrimary, CircleShape)
                                 )
                                 .clickable { selectedSnooze = duration },
                             contentAlignment = Alignment.Center
                         ) {
                             Text(
                                 text = duration.toString(),
-                                color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onPrimary,
+                                color = Color.Black,
                                 fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
                                 fontSize = 14.sp
                             )
@@ -238,9 +240,10 @@ fun RingingScreen(label: String?, onDismiss: () -> Unit, onSnooze: (Int) -> Unit
                 onClick = onDismiss,
                 modifier = Modifier.weight(1f).height(64.dp),
                 colors = ButtonDefaults.buttonColors(
-                    containerColor = MaterialTheme.colorScheme.onPrimary,
-                    contentColor = MaterialTheme.colorScheme.primary
-                )
+                    containerColor = grayColor,
+                    contentColor = Color.White
+                ),
+                shape = MaterialTheme.shapes.extraLarge
             ) {
                 Text("Dismiss", fontSize = 18.sp, fontWeight = FontWeight.Bold)
             }
