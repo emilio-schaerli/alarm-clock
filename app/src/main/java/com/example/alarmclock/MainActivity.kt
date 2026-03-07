@@ -64,9 +64,12 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SecondaryTabRow
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
+import androidx.compose.material3.Tab
+import androidx.compose.material3.TabRowDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TimePicker
@@ -399,12 +402,21 @@ fun AlarmScreen(scheduler: AlarmScheduler, dataStore: AlarmDataStore) {
     val rawAlarms by dataStore.alarmsFlow.collectAsState(initial = emptyList<AlarmItem>())
     val sortOrder by dataStore.sortOrderFlow.collectAsState(initial = AlarmSortOrder.TIME)
     var searchQuery by remember { mutableStateOf("") }
-    
-    val filteredAlarms = remember(rawAlarms, searchQuery) {
+    var selectedFilterTab by remember { mutableIntStateOf(0) } // 0: All, 1: Recurring, 2: One-time
+
+    val filteredByTab = remember(rawAlarms, selectedFilterTab) {
+        when (selectedFilterTab) {
+            1 -> rawAlarms.filter { it.daysOfWeek.isNotEmpty() }
+            2 -> rawAlarms.filter { it.daysOfWeek.isEmpty() }
+            else -> rawAlarms
+        }
+    }
+
+    val filteredAlarms = remember(filteredByTab, searchQuery) {
         if (searchQuery.isBlank()) {
-            rawAlarms
+            filteredByTab
         } else {
-            rawAlarms.filter { it.label?.contains(searchQuery, ignoreCase = true) == true }
+            filteredByTab.filter { it.label?.contains(searchQuery, ignoreCase = true) == true }
         }
     }
 
@@ -472,6 +484,31 @@ fun AlarmScreen(scheduler: AlarmScheduler, dataStore: AlarmDataStore) {
                 .fillMaxSize()
                 .padding(horizontal = 16.dp)
         ) {
+            // Filter Tabs
+            SecondaryTabRow(
+                selectedTabIndex = selectedFilterTab,
+                containerColor = Color.Transparent,
+                divider = {}
+            ) {
+                Tab(
+                    selected = selectedFilterTab == 0,
+                    onClick = { selectedFilterTab = 0 },
+                    text = { Text("All", fontWeight = if (selectedFilterTab == 0) FontWeight.Bold else FontWeight.Normal) }
+                )
+                Tab(
+                    selected = selectedFilterTab == 1,
+                    onClick = { selectedFilterTab = 1 },
+                    text = { Text("Recurring", fontWeight = if (selectedFilterTab == 1) FontWeight.Bold else FontWeight.Normal) }
+                )
+                Tab(
+                    selected = selectedFilterTab == 2,
+                    onClick = { selectedFilterTab = 2 },
+                    text = { Text("One-time", fontWeight = if (selectedFilterTab == 2) FontWeight.Bold else FontWeight.Normal) }
+                )
+            }
+
+            Spacer(modifier = Modifier.height(8.dp))
+
             // Search Bar
             OutlinedTextField(
                 value = searchQuery,
